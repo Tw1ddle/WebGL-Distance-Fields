@@ -1,0 +1,39 @@
+// Displays the final distance field. A re-implementation of Greens method, using a single channel high precision distance map and explicit texel interpolation.
+// This code is in the public domain.
+
+varying vec2 vUv;
+
+uniform sampler2D tDiffuse;
+uniform float texw;
+uniform float texh;
+
+void main()
+{
+	vec2 uv = vUv * vec2(texw, texh); // Scale to texture rect coords
+	vec2 uv00 = floor (uv - vec2(0.5)); // Lower left of lower left texel
+	vec2 uvlerp = uv - uv00 - vec2(0.5); // Texel - local blends [0,1]
+	
+	// Perform explicit texture interpolation of distance value D.
+	// If hardware interpolation is OK, use D = texture2D(tDiffuse, vUv).
+	
+	// Center st00 on lower left texel and rescale to [0,1] for lookup
+	vec2 st00 = (uv00 + vec2(0.5)) * vec2(1.0 / texw, 1.0 / texh);
+	
+	// Sample distance D from the centers of the four closest texels
+	float D00 = texture2D(tDiffuse, st00).r;
+	float D10 = texture2D(tDiffuse, st00 + vec2 (0.5 * 1.0 / texw, 0.0)).r;
+	float D01 = texture2D(tDiffuse, st00 + vec2 (0.0, 0.5 * 1.0 / texh)).r;
+	float D11 = texture2D(tDiffuse, st00 + vec2 (0.5 * 1.0 / texw, 0.5 * 1.0 / texh)).r;
+	vec2 D00_10 = vec2(D00, D10);
+	vec2 D01_11 = vec2(D01, D11);
+	vec2 D0_1 = mix(D00_10, D01_11, uvlerp.y); // Interpolate along v
+	float D = mix(D0_1.x, D0_1.y, uvlerp.x); // Interpolate along u
+	
+	// Perform anisotropic analytic antialiasing
+	float aastep = 0.7 * length(vec2(dFdx(D), dFdy(D)));
+	
+	// Pattern is 1 where D > 0, 0 where D < 0, with proper AA around D = 0.
+	float pattern = smoothstep(-aastep, aastep, D);
+	
+	gl_FragColor = vec4(vec3(pattern), 1.0);
+}

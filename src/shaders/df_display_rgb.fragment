@@ -1,0 +1,28 @@
+// Displays the final distance field visualized as an RGB image.
+// This code is in the public domain.
+
+varying vec2 vUv;
+
+uniform sampler2D tDiffuse;
+uniform float texw;
+uniform float texh;
+uniform float texLevels;
+
+// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].
+// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.
+vec2 remap(vec2 floatdata)
+{
+	return floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;
+}
+
+void main()
+{
+	vec3 texel = texture2D(tDiffuse, vUv).rgb;
+	vec2 distvec = remap(texel.rg);
+	
+	float dist = length(distvec) + (texel.b - 0.5) / texw;
+	gl_FragColor = vec4(vec2(mod(10.0 * dist, 1.0)), texel.b, 1.0);
+	
+    //vec2 rainbow = 0.5 + 0.5 * (normalize(distvec));
+    //gl_FragColor = vec4(rainbow, 1.0 - (length(distvec) + texel.b - 0.5) * 4.0, 1.0);
+}
