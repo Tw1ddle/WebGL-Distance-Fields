@@ -20,9 +20,9 @@ void main()
 	vec3 texel = texture2D(tDiffuse, vUv).rgb;
 	vec2 distvec = remap(texel.rg);
 	
-	float dist = length(distvec) + (texel.b - 0.5) / texw;
-	gl_FragColor = vec4(vec2(mod(10.0 * dist, 1.0)), texel.b, 1.0);
-	
     //vec2 rainbow = 0.5 + 0.5 * (normalize(distvec));
     //gl_FragColor = vec4(rainbow, 1.0 - (length(distvec) + texel.b - 0.5) * 4.0, 1.0);
+	
+	float dist = length(distvec) + (texel.b - 0.5) / texw;
+	gl_FragColor = vec4(vec2(mod(10.0 * dist, 1.0)), texel.b, 1.0);
 }

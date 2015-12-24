@@ -10,9 +10,15 @@ uniform float texLevels;
 void main()
 {
 	float texel = texture2D(tDiffuse, vUv).r;
-	float myzero = 0.5 * texLevels / (texLevels - 1.0); // Represents zero
-	float myinfinity = 0.0; // Represents infinity
-	float aadist = texel; // Sub-pixel AA distance
+	
+	// Represents zero
+	float myzero = 0.5 * texLevels / (texLevels - 1.0);
+	
+	// Represents infinity
+	float myinfinity = 0.0;
+	
+	// Sub-pixel AA distance
+	float aadist = texel;
 	
 	// Pixels > 0.5 are objects, others are background
 	gl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);

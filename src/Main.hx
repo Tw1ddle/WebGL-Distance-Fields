@@ -1,63 +1,39 @@
 package;
 
-import composer.ShaderPass;
 import dat.GUI;
-import dat.ThreeObjectGUI;
+import haxe.ds.StringMap;
 import js.Browser;
 import msignal.Signal.Signal0;
 import msignal.Signal.Signal1;
-import shaders.Copy;
-import shaders.DF.DF_DISPLAY_AA;
-import shaders.EDT.EDT_FLOOD;
-import shaders.EDT.EDT_SEED;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
 import three.Mapping;
-import three.Mesh;
-import three.OrthographicCamera;
-import three.PixelFormat;
-import three.PlaneGeometry;
-import three.postprocessing.EffectComposer;
-import three.Scene;
-import three.ShaderMaterial;
 import three.Texture;
-import three.TextureDataType;
-import three.TextureFilter;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
-import three.WebGLRenderTargetOptions;
-import three.Wrapping;
 import webgl.Detector;
 
 class Main {
-	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/Box";
+	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
 	public static inline var WEBSITE_URL:String = "http://samcodes.co.uk/";
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
-	public var signal_windowResized(default, null) = new Signal0();	
-	
 	private var gameAttachPoint:Dynamic;
 	
-	private static inline var texLevels:Float = 256.0;
-	public var edtCamera(default, null):OrthographicCamera;
-	public var edtScene(default, null):Scene;
-	private var renderer:WebGLRenderer;
-	private var ping:WebGLRenderTarget;
-	private var pong:WebGLRenderTarget;
+	public var signal_windowResized(default, null) = new Signal0();	
 	
-	private var aaPass:ShaderPass;
-	private var composer:EffectComposer;
-	private var sdffDisplayMaterial:ShaderMaterial;
+	private var renderer:WebGLRenderer;
+
+	private var sdfMaker:SDFMaker;
+	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
 	
 	private var lettersTyped:Array<String>;
 	public var signal_letterTyped(default, null) = new Signal1<String>();
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
 	private static var dt:Float = 0.0; // Frame delta time
-	
-	//private var map:ObjectMap<Dynamic> = new ObjectMap<Dynamic>();
 	
 	private var sceneGUI:GUI;
 	private var shaderGUI:GUI;
@@ -100,181 +76,56 @@ class Main {
 			return;
 		}
 		
-		// Attach game div
-		gameAttachPoint = Browser.document.getElementById("game");
-		gameAttachPoint.appendChild(gameDiv);
-		
 		// Setup WebGL renderer
         renderer = new WebGLRenderer( { antialias: true } );
-		renderer.context.getExtension('OES_standard_derivatives');
+		
+		// WebGL extensions support check
+		var extDerivatives = 'OES_standard_derivatives';
+		var ext = renderer.context.getExtension(extDerivatives);
+		if (ext == null) {
+			var missingExtensionInfo = Browser.document.createElement('div');
+			missingExtensionInfo.style.position = 'absolute';
+			missingExtensionInfo.style.top = '10px';
+			missingExtensionInfo.style.width = '100%';
+			missingExtensionInfo.style.textAlign = 'center';
+			missingExtensionInfo.style.color = '#ffffff';
+			missingExtensionInfo.innerHTML = 'Missing required WebGL extension: ' + extDerivatives + ' Click <a href="' + REPO_URL + '" target="_blank">here for project info</a> instead.';
+			gameDiv.appendChild(missingExtensionInfo);
+			return;
+		}
+		
         renderer.sortObjects = false;
 		renderer.autoClear = false;
 		renderer.setClearColor(new Color(0x000000));
 		renderer.setPixelRatio(Browser.window.devicePixelRatio);
 		
+		// Attach game div
+		gameAttachPoint = Browser.document.getElementById("game");
+		gameAttachPoint.appendChild(gameDiv);
+		
+		// Initial renderer setup
+		// Connect signals and slots
+		signal_windowResized.add(function():Void {
+			renderer.setSize(1024, 1024);
+		});
+		signal_windowResized.dispatch();
+		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
 		var height = Browser.window.innerHeight * renderer.getPixelRatio();
 		
-		var texture = ImageUtils.loadTexture("assets/logo.png", Mapping.UVMapping, function(texture:Texture):Void {			
-			//camera = new PerspectiveCamera(75, width / height, 20, 70000);
-			edtCamera = new OrthographicCamera(-texture.image.width / 2, texture.image.width / 2, texture.image.height / 2, -texture.image.height / 2, -10000, 10000);
-			
-			// Initial renderer setup
-			signal_windowResized.dispatch();
-			
-			edtScene = new Scene();
-			
-			// Material for creating the initial seed texture
-			var seedMaterial = new ShaderMaterial({
-				vertexShader: EDT_SEED.vertexShader,
-				fragmentShader: EDT_SEED.fragmentShader,
-				uniforms: EDT_SEED.uniforms,
-				transparent: true
-			});
-			seedMaterial.uniforms.tDiffuse.value = texture;
-			seedMaterial.uniforms.texLevels.value = texLevels;
-			
-			// Render targets, buffers for iterative EDT rendering
-			var renderTargetParams:WebGLRenderTargetOptions = {
-				minFilter: TextureFilter.NearestFilter,
-				magFilter: TextureFilter.NearestFilter,
-				wrapS: Wrapping.ClampToEdgeWrapping,
-				wrapT: Wrapping.ClampToEdgeWrapping,
-				format: cast PixelFormat.RGBAFormat,
-				stencilBuffer: false,
-				depthBuffer: false,
-				type: TextureDataType.UnsignedByteType
-			};
-			ping = new WebGLRenderTarget(texture.image.width, texture.image.height, renderTargetParams);
-			pong = new WebGLRenderTarget(texture.image.width, texture.image.height, renderTargetParams);
-			
-			var geometry = new PlaneGeometry(texture.image.width, texture.image.height);
-			var mesh = new Mesh(geometry, seedMaterial);
-			edtScene.add(mesh);
-			
-			// Render scene into texture
-			renderer.render(edtScene, edtCamera, ping, true);
-			
-			// Render into scene for viewing
-			renderer.render(edtScene, edtCamera);
-			
-			// Material for performing the EDT
-			var floodMaterial = new ShaderMaterial({
-				vertexShader: EDT_FLOOD.vertexShader,
-				fragmentShader: EDT_FLOOD.fragmentShader,
-				uniforms: EDT_FLOOD.uniforms
-			});
-			
-			edtScene.overrideMaterial = floodMaterial;
-
-			// Current implementation will (probably) fail for larger textures, need RGB16, two separate textures or some other trick to do higher resolutions 
-			//Sure.sure(texture.image.width <= 128);
-			//Sure.sure(texture.image.height <= 128);
-			
-			var stepSize:Int = texture.image.width > texture.image.height ? Std.int(texture.image.width / 2) : Std.int(texture.image.height / 2);
-			var last = ping;	
-			while (stepSize > 0) {				
-				floodMaterial.uniforms.texLevels.value = texLevels;
-				floodMaterial.uniforms.texw.value = texture.image.width;
-				floodMaterial.uniforms.texh.value = texture.image.height;
-				floodMaterial.uniforms.tDiffuse.value = last;
-				floodMaterial.uniforms.step.value = stepSize;
-
-				last == ping ? last = pong : last = ping;
-				
-				renderer.render(edtScene, edtCamera, last, true);
-				
-				stepSize = Std.int(stepSize / 2);
-				
-				var copyMaterial = new ShaderMaterial( {
-					vertexShader: Copy.vertexShader,
-					fragmentShader: Copy.fragmentShader,
-					uniforms: Copy.uniforms
-				});
-				copyMaterial.uniforms.tDiffuse.value = last;
-				
-				var displayMaterial = new ShaderMaterial( {
-					vertexShader: DF_DISPLAY_AA.vertexShader,
-					fragmentShader: DF_DISPLAY_AA.fragmentShader,
-					uniforms: DF_DISPLAY_AA.uniforms
-				});
-				displayMaterial.derivatives = true;
-				displayMaterial.uniforms.tDiffuse.value = last;
-				//displayMaterial.uniforms.texLevels.value = texLevels;
-				displayMaterial.uniforms.texw.value = texture.image.width;
-				displayMaterial.uniforms.texh.value = texture.image.height;
-				
-				edtScene.overrideMaterial = copyMaterial;
-				renderer.render(edtScene, edtCamera);
-				
-				edtScene.overrideMaterial = floodMaterial;
-			}
-			
-			var displayMaterial = new ShaderMaterial( {
-				vertexShader: DF_DISPLAY_AA.vertexShader,
-				fragmentShader: DF_DISPLAY_AA.fragmentShader,
-				uniforms: DF_DISPLAY_AA.uniforms
-			});
-			displayMaterial.derivatives = true;
-			displayMaterial.uniforms.tDiffuse.value = last;
-			//displayMaterial.uniforms.texLevels.value = texLevels;
-			displayMaterial.uniforms.texw.value = texture.image.width;
-			displayMaterial.uniforms.texh.value = texture.image.height;
-			
-			var copyMaterial = new ShaderMaterial( {
-				vertexShader: Copy.vertexShader,
-				fragmentShader: Copy.fragmentShader,
-				uniforms: Copy.uniforms
-			});
-			copyMaterial.uniforms.tDiffuse.value = last;
-			
-			edtScene.overrideMaterial = copyMaterial;
-			renderer.render(edtScene, edtCamera);
-			
-			//sdffDisplayMaterial = new ShaderMaterial( { vertexShader: SDFF_RGB.vertexShader, fragmentShader: SDFF_RGB.fragmentShader, uniforms: SDFF_RGB.uniforms } );
-			sdffDisplayMaterial = new ShaderMaterial( { vertexShader: DF_DISPLAY_AA.vertexShader, fragmentShader: DF_DISPLAY_AA.fragmentShader, uniforms: DF_DISPLAY_AA.uniforms } );
-			sdffDisplayMaterial.derivatives = true;
-			sdffDisplayMaterial.transparent = true;
-			
-			sdffDisplayMaterial.uniforms.tDiffuse.value = texture;
-			sdffDisplayMaterial.uniforms.texw.value = texture.image.width;
-			sdffDisplayMaterial.uniforms.texh.value = texture.image.height;
-			//sdffDisplayMaterial.uniforms.texLevels.value = texLevels;
-			
-			edtScene.overrideMaterial = sdffDisplayMaterial;
-			
-			renderer.render(edtScene, edtCamera);
-			
-			// Test the SDF renderer displays a test PNG correctly
-			
-			/*
-			var texture = ImageUtils.loadTexture("assets/displaytest2.png", Mapping.UVMapping, function(texture:Texture):Void {
-				//sdffDisplayMaterial = new ShaderMaterial( { vertexShader: SDFF_RGB.vertexShader, fragmentShader: SDFF_RGB.fragmentShader, uniforms: SDFF_RGB.uniforms } );
-				sdffDisplayMaterial = new ShaderMaterial( { vertexShader: DF_DISPLAY_AA.vertexShader, fragmentShader: DF_DISPLAY_AA.fragmentShader, uniforms: DF_DISPLAY_AA.uniforms } );
-				sdffDisplayMaterial.derivatives = true;
-				sdffDisplayMaterial.transparent = true;
-				
-				sdffDisplayMaterial.uniforms.tDiffuse.value = texture;
-				sdffDisplayMaterial.uniforms.texw.value = texture.image.width;
-				sdffDisplayMaterial.uniforms.texh.value = texture.image.height;
-				//sdffDisplayMaterial.uniforms.texLevels.value = texLevels;
-				
-				edtScene.overrideMaterial = sdffDisplayMaterial;
-				
-				renderer.render(edtScene, edtCamera);
-			});
-			*/
-			
-			
+		sdfMaker = new SDFMaker(renderer);
+		sdfMaker.signal_textureLoaded.add(function(tag:Dynamic, target:WebGLRenderTarget):Void {
+			trace("Loaded texture with uuid: " + tag + " to target: " + target);
+			sdfMap.set(target.uuid, target);
+		});
+		
+		var texture = ImageUtils.loadTexture("assets/test6.png", Mapping.UVMapping, function(texture:Texture):Void {
+			sdfMaker.transformTexture(texture);
+			// TODO do when ready
 			setupGUI();
 		});
 		
-		//var plane = new Mesh(new PlaneGeometry(128, 128), sdffDisplayMaterial);
-		//worldScene.add(plane);
-		
-		// Setup composers
-		//composer = new EffectComposer(renderer);
-		//composer.addPass(aaPass);
+		// TODO notify on context loss
 		
 		// Event setup
 		// Window resize event
@@ -297,21 +148,6 @@ class Main {
 		// Setup performance stats
 		setupStats();
 		#end
-		
-		// Connect signals and slots
-		signal_windowResized.add(function():Void {
-			//camera.aspect = Browser.window.innerWidth / Browser.window.innerHeight;
-			edtCamera.updateProjectionMatrix();
-			renderer.setSize(1024, 1024);
-		});
-		
-		signal_windowResized.add(function():Void {
-			var pixelRatio = renderer.getPixelRatio();
-			var width = Browser.window.innerWidth * pixelRatio;
-			var height = Browser.window.innerHeight * pixelRatio;
-			
-			//aaPass.uniforms.resolution.value.set(width, height);
-		});
 		
 		// Present game and start animation loop
 		gameDiv.appendChild(renderer.domElement);
@@ -336,8 +172,8 @@ class Main {
 	private inline function setupGUI():Void {
 		Sure.sure(sceneGUI == null);
 		sceneGUI = new GUI( { autoPlace:true } );
-		ThreeObjectGUI.addItem(sceneGUI, edtCamera, "World Camera");
-		ThreeObjectGUI.addItem(sceneGUI, edtScene, "Scene");
+		//ThreeObjectGUI.addItem(sceneGUI, sdfMaker.edtCamera, "World Camera");
+		//ThreeObjectGUI.addItem(sceneGUI, sdfMaker.edtScene, "Scene");
 		
 		Sure.sure(shaderGUI == null);
 		shaderGUI = new GUI( { autoPlace:true } );
