@@ -31,7 +31,7 @@ class EDT_DISPLAY_AA {
 		texw: { type: "f", value: 0.0 },
 		texh: { type: "f", value: 0.0 },
 		texLevels: { type: "f", value: 0.0 },
-		threshold: { type: "f", value: 0.0 }
+		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 }
 	};
 	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
 	public static var fragmentShader = FileReader.readFile("shaders/edt_display_aa.fragment");
@@ -44,7 +44,7 @@ class EDT_DISPLAY_OVERLAY {
 		texw: { type: "f", value: 0.0 },
 		texh: { type: "f", value: 0.0 },
 		texLevels: { type: "f", value: 0.0 },
-		threshold: { type: "f", value: 0.0 }
+		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 }
 	};
 	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
 	public static var fragmentShader = FileReader.readFile("shaders/edt_display_overlay.fragment");
@@ -68,8 +68,8 @@ class EDT_DISPLAY_ALPHA_THRESHOLD {
 		tDiffuse: { type: "t", value: null },
 		texw: { type: "f", value: 0.0 },
 		texh: { type: "f", value: 0.0 },
-		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 },
-		texLevels: { type: "f", value: 0.0 }
+		texLevels: { type: "f", value: 0.0 },
+		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 }
 	};
 	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
 	public static var fragmentShader = FileReader.readFile("shaders/edt_alpha_threshold.fragment");

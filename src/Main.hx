@@ -151,7 +151,7 @@ class Main {
 			material.uniforms.texw.value = target.width;
 			material.uniforms.texh.value = target.height;
 			material.uniforms.texLevels.value = sdfMaker.texLevels;
-			material.uniforms.threshold.value = 0.5;
+			material.uniforms.threshold.value = 0.0;
 			
 			var mesh = new Mesh(geometry, material);
 			scene.add(mesh);
