@@ -22,6 +22,9 @@ import three.Texture;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
+import shaders.EDT.EDT_DISPLAY_OVERLAY;
+import shaders.EDT.EDT_DISPLAY_RGB;
+import shaders.EDT.EDT_DISPLAY_ALPHA_THRESHOLD;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
@@ -148,7 +151,7 @@ class Main {
 			material.uniforms.texw.value = target.width;
 			material.uniforms.texh.value = target.height;
 			material.uniforms.texLevels.value = sdfMaker.texLevels;
-			material.uniforms.threshold.value = 0.0;
+			material.uniforms.threshold.value = 0.5;
 			
 			var mesh = new Mesh(geometry, material);
 			scene.add(mesh);
@@ -214,8 +217,13 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
+		// TODO add shader select
+		
 		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
-		ShaderGUI.generate(shaderGUI, "EDT", EDT_DISPLAY_AA.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT DISPLAY AA", EDT_DISPLAY_AA.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT DISPLAY OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT DISPLAY RGB", EDT_DISPLAY_RGB.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT DISPLAY ALPHA THRESHOLD", EDT_DISPLAY_ALPHA_THRESHOLD.uniforms);
 	}
 	
 	#if debug

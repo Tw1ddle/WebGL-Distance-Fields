@@ -20,7 +20,11 @@ class ShaderGUI {
 			
 			switch(type) {
 				case "f":
-					folder.add(v, 'value').listen().name(key);
+					if (Reflect.hasField(v, "min") && Reflect.hasField(v, "max")) {
+						folder.add(v, 'value').listen().min(v.min).max(v.max).name(key);
+					} else {
+						folder.add(v, 'value').listen().name(key);
+					}
 				case "v2":
 					var f = folder.addFolder(key);
 					f.add(v.value, 'x').listen().name(key + "_x");

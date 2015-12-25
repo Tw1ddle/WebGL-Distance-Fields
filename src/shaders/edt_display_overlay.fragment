@@ -48,8 +48,11 @@ void main()
 	// Interpolate along u
 	float D = mix(D0_1.x, D0_1.y, uvlerp.x);
 	
-	float g = aastep(threshold, D);
+	float c = aastep(threshold, D);
+	
+	// Retrieve the B channel to get the original grayscale image
+	float g = texture2D(tDiffuse, vUv).b;
 	
 	// Final fragment color
-	gl_FragColor = vec4(vec3(g), 1.0);
+	gl_FragColor = vec4(vec3(g, c, g), 1.0);
 }

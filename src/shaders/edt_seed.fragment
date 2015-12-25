@@ -14,7 +14,7 @@ void main()
 	// Represents zero
 	float myzero = 0.5 * texLevels / (texLevels - 1.0);
 	
-	// Represents infinity
+	// Represents infinity/not-yet-calculated
 	float myinfinity = 0.0;
 	
 	// Sub-pixel AA distance

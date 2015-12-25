@@ -24,7 +24,7 @@ class EDT_SEED {
 	public static var fragmentShader = FileReader.readFile("shaders/edt_seed.fragment");
 }
 
-// Displays distance fields as antialiased black/white
+// Displays distance field as antialiased black/white image
 class EDT_DISPLAY_AA {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
@@ -37,7 +37,20 @@ class EDT_DISPLAY_AA {
 	public static var fragmentShader = FileReader.readFile("shaders/edt_display_aa.fragment");
 }
 
-// Displays distance fields as an RGB image
+// Displays distance field as antialiased black/white with the original grayscale image overlaid
+class EDT_DISPLAY_OVERLAY {
+	public static var uniforms = {
+		tDiffuse: { type: "t", value: null },
+		texw: { type: "f", value: 0.0 },
+		texh: { type: "f", value: 0.0 },
+		texLevels: { type: "f", value: 0.0 },
+		threshold: { type: "f", value: 0.0 }
+	};
+	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("shaders/edt_display_overlay.fragment");
+}
+
+// Displays distance field as an RGB image
 class EDT_DISPLAY_RGB {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
@@ -47,4 +60,17 @@ class EDT_DISPLAY_RGB {
 	};
 	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
 	public static var fragmentShader = FileReader.readFile("shaders/edt_display_rgb.fragment");
+}
+
+// Flawed display method, alpha thresholding that produces wavy contours
+class EDT_DISPLAY_ALPHA_THRESHOLD {
+	public static var uniforms = {
+		tDiffuse: { type: "t", value: null },
+		texw: { type: "f", value: 0.0 },
+		texh: { type: "f", value: 0.0 },
+		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 },
+		texLevels: { type: "f", value: 0.0 }
+	};
+	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("shaders/edt_alpha_threshold.fragment");
 }

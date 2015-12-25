@@ -1,5 +1,5 @@
 // Distance map contour texturing by Stefan Gustavson, 2011.
-// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.
+// Simple alpha thresholding, produces wavey contours.
 // This code is in the public domain.
 
 varying vec2 vUv;
@@ -37,19 +37,18 @@ void main()
 	vec4 D10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));
 	vec4 D01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));
 	vec4 D11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));
-	
-	// Restore the values for D from their 8.8 fixed point encoding	
-	vec2 D00_10 = vec2(D00.r, D10.r) * 255.0 - 128.0 + vec2(D00.g, D10.g) * (255.0 / 256.0);
-	vec2 D01_11 = vec2(D01.r, D11.r) * 255.0 - 128.0 + vec2(D01.g, D11.g) * (255.0 / 256.0);
-	
+
+	// Retrieve the B channel to get the original grayscale image
+	vec4 G = vec4(D00.b, D01.b, D10.b, D11.b);
+  
 	// Interpolate along v
-	vec2 D0_1 = mix(D00_10, D01_11, uvlerp.y);
-	
+	G.xy = mix(G.xz, G.yw, uvlerp.y);
+
 	// Interpolate along u
-	float D = mix(D0_1.x, D0_1.y, uvlerp.x);
-	
-	float g = aastep(threshold, D);
+	float g = mix(G.x, G.y, uvlerp.x);
+
+	float c = aastep(threshold, g);
 	
 	// Final fragment color
-	gl_FragColor = vec4(vec3(g), 1.0);
+	gl_FragColor = vec4(vec3(c), 1.0);
 }

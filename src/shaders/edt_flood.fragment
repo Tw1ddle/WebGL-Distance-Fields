@@ -28,7 +28,7 @@ uniform float texLevels;
 // transform images up to 32768x32768, i.e. beyond the largest
 // texture size available in current implementations of OpenGL.
 // Direct use of integers in the shader (by means of texture2DRect
-// and GL_RG8I and GL_RG16I texture formats) could be faster, but
+// and GL_RG8I and GL_RG16I texture formats) could be faster, but-1
 // this code is conveniently compatible even with version 1.2 of GLSL
 // (i.e. OpenGL 2.1), and the main shader is limited by texture access
 // and branching, not ALU capacity, so a few extra multiplications
@@ -43,9 +43,11 @@ vec2 remap_inv(vec2 floatvec)
      return (floatvec + 1.0) * 0.5 * texLevels / (texLevels - 1.0);
 }
 
-// TODO fix this, its hideous
+// TODO this isn't ideal, also does it work for most texture sizes?
 vec3 sampleTexture(sampler2D texture, vec2 vec)
 {
+	// The algorithm depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.
+	// These explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in UV cause a slowdown of about 25%.
 	if(vec.x >= 1.0 || vec.y >= 1.0 || vec.x <= 0.0 || vec.y <= 0.0)
 	{
 		vec = clamp(vec, 0.0, 1.0);
@@ -55,151 +57,49 @@ vec3 sampleTexture(sampler2D texture, vec2 vec)
 	return texture2D(texture, vec).rgb;
 }
 
+void testCandidate(in vec2 stepvec, inout vec4 newseed, inout vec4 bestseed)
+{
+	vec2 newvec = vUv + stepvec; // Absolute position of that candidate
+	vec3 texel = sampleTexture(tDiffuse, newvec).rgb;
+	newseed.xy = remap(texel.rg);
+	if(newseed.x > -0.99999)
+	{
+		// If the new seed is not "indeterminate distance"
+		newseed.xy = newseed.xy + stepvec;
+		
+		// TODO: This AA assumes texw == texh. It does not allow for non-square textures.
+		newseed.z = length(newseed.xy) + (texel.b - 0.5) / texw;
+		newseed.w = texel.b;
+		
+		if(newseed.z < bestseed.z)
+		{
+			bestseed = newseed;
+		}
+	}
+}
+
 void main()
 {
-	// Search for better distance vectors among 8 candidates
-	vec2 stepvec; // Relative offset to candidate being tested
-	vec2 newvec; // Absolute position of that candidate
-	vec4 newseed; // Closest point from that candidate (.xy),
-				 // its AA distance (.z) and its grayscale value (.w)
-	vec4 bestseed; // Closest seed so far
-	vec3 texel;
-	texel = sampleTexture(tDiffuse, vUv).rgb;
-	bestseed.xy = remap(texel.rg);
+	// Searches for better distance vectors among 8 candidates	
+	vec3 texel = sampleTexture(tDiffuse, vUv).rgb;
 	
-	// TODO: This AA assumes texw == texh. It does not allow for non-square textures.
-	bestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset
-	bestseed.w = texel.b; // Save AA edge offset
-
-	// This code depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.
-	// Explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in u and/or v cause a slowdown of about 25%.
-	stepvec = vec2(-stepu, -stepv);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // If the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(-stepu, 0.0);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(-stepu, stepv);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(0.0, -stepv);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-      // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(0.0, stepv);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(stepu, -stepv);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(stepu, 0.0);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
-	stepvec = vec2(stepu, stepv);
-	newvec = vUv + stepvec;
-	texel = sampleTexture(tDiffuse, newvec).rgb;
-	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
-	{
-	  // if the new seed is not "indeterminate distance"
-	  newseed.xy = newseed.xy + stepvec;
-	  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;
-	  newseed.w = texel.b;
-	  if(newseed.z < bestseed.z)
-	  {
-		bestseed = newseed;
-	  }
-	}
-
+	// Closest seed so far
+	vec4 bestseed;
+	bestseed.xy = remap(texel.rg);
+	bestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset to distance
+	bestseed.w = texel.b; // Save AA/grayscale value
+	
+	// Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)
+	vec4 newseed;
+	
+	testCandidate(vec2(-stepu, -stepv), newseed, bestseed);
+	testCandidate(vec2(-stepu, 0.0), newseed, bestseed);
+	testCandidate(vec2(-stepu, stepv), newseed, bestseed);
+	testCandidate(vec2(0.0, -stepv), newseed, bestseed);
+	testCandidate(vec2(0.0, stepv), newseed, bestseed);
+	testCandidate(vec2(stepu, -stepv), newseed, bestseed);
+	testCandidate(vec2(stepu, 0.0), newseed, bestseed);
+	testCandidate(vec2(stepu, stepv), newseed, bestseed);
+	
 	gl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);
 }
