@@ -1,14 +1,23 @@
 package;
 
 import dat.GUI;
+import dat.ShaderGUI;
+import dat.ThreeObjectGUI;
 import haxe.ds.StringMap;
 import js.Browser;
 import msignal.Signal.Signal0;
 import msignal.Signal.Signal1;
+import shaders.EDT.EDT_DISPLAY_AA;
+import shaders.FXAA;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
 import three.Mapping;
+import three.Mesh;
+import three.PerspectiveCamera;
+import three.PlaneGeometry;
+import three.Scene;
+import three.ShaderMaterial;
 import three.Texture;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
@@ -20,23 +29,23 @@ class Main {
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
-	private var gameAttachPoint:Dynamic;
-	
-	public var signal_windowResized(default, null) = new Signal0();	
-	
+	private var gameAttachPoint:Dynamic;	
 	private var renderer:WebGLRenderer;
 
+	private var scene:Scene;
+	private var camera:PerspectiveCamera;
+	
 	private var sdfMaker:SDFMaker;
 	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
 	
-	private var lettersTyped:Array<String>;
 	public var signal_letterTyped(default, null) = new Signal1<String>();
+	public var signal_windowResized(default, null) = new Signal0();
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
 	private static var dt:Float = 0.0; // Frame delta time
 	
-	private var sceneGUI:GUI;
-	private var shaderGUI:GUI;
+	private var sceneGUI:GUI = new GUI( { autoPlace:true } );
+	private var shaderGUI:GUI = new GUI( { autoPlace:true } );
 	
 	#if debug
 	public var stats(default, null):Stats;
@@ -103,27 +112,51 @@ class Main {
 		gameAttachPoint = Browser.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
 		
-		// Initial renderer setup
-		// Connect signals and slots
-		signal_windowResized.add(function():Void {
-			renderer.setSize(1024, 1024);
-		});
-		signal_windowResized.dispatch();
-		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
 		var height = Browser.window.innerHeight * renderer.getPixelRatio();
 		
+		scene = new Scene();
+		camera = new PerspectiveCamera(75, width / height, 1, 10000);
+		camera.position.z = 300;
+		
+		// Initial renderer setup
+		// Connect signals and slots
+		signal_windowResized.add(function():Void {
+			var width = Browser.window.innerWidth * renderer.getPixelRatio();
+			var height = Browser.window.innerHeight * renderer.getPixelRatio();
+			
+			renderer.setSize(width, height);
+			
+			camera.aspect = width / height;
+			camera.updateProjectionMatrix();
+		});
+		signal_windowResized.dispatch();
+		
 		sdfMaker = new SDFMaker(renderer);
 		sdfMaker.signal_textureLoaded.add(function(tag:Dynamic, target:WebGLRenderTarget):Void {
-			trace("Loaded texture with uuid: " + tag + " to target: " + target);
-			sdfMap.set(target.uuid, target);
-		});
-		
-		var texture = ImageUtils.loadTexture("assets/test6.png", Mapping.UVMapping, function(texture:Texture):Void {
-			sdfMaker.transformTexture(texture);
-			// TODO do when ready
+			//trace("Loaded texture with tag: " + tag + " to target: " + target);
+			sdfMap.set(tag, target);
+			
+			var geometry = new PlaneGeometry(100, 100);
+			var material = new ShaderMaterial({
+				vertexShader: EDT_DISPLAY_AA.vertexShader,
+				fragmentShader: EDT_DISPLAY_AA.fragmentShader,
+				uniforms: EDT_DISPLAY_AA.uniforms
+			});
+			material.derivatives = true;
+			material.uniforms.tDiffuse.value = target;
+			material.uniforms.texw.value = target.width;
+			material.uniforms.texh.value = target.height;
+			material.uniforms.texLevels.value = sdfMaker.texLevels;
+			material.uniforms.threshold.value = 0.0;
+			
+			var mesh = new Mesh(geometry, material);
+			scene.add(mesh);
+			
 			setupGUI();
 		});
+		
+		loadTexture("assets/test3.png");
 		
 		// TODO notify on context loss
 		
@@ -154,6 +187,12 @@ class Main {
 		Browser.window.requestAnimationFrame(animate);
 	}
 	
+	private inline function loadTexture(url:String):Void {
+		var texture = ImageUtils.loadTexture(url, Mapping.UVMapping, function(texture:Texture):Void {
+			sdfMaker.transformTexture(texture);
+		});
+	}
+	
 	private function animate(time:Float):Void {
 		#if debug
 		stats.begin();
@@ -161,6 +200,8 @@ class Main {
 		
 		dt = (time - lastAnimationTime) * 0.001; // Seconds
 		lastAnimationTime = time;
+		
+		renderer.render(scene, camera);
 		
 		Browser.window.requestAnimationFrame(animate);
 		
@@ -170,14 +211,11 @@ class Main {
 	}
 	
 	private inline function setupGUI():Void {
-		Sure.sure(sceneGUI == null);
-		sceneGUI = new GUI( { autoPlace:true } );
-		//ThreeObjectGUI.addItem(sceneGUI, sdfMaker.edtCamera, "World Camera");
-		//ThreeObjectGUI.addItem(sceneGUI, sdfMaker.edtScene, "Scene");
+		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
+		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		Sure.sure(shaderGUI == null);
-		shaderGUI = new GUI( { autoPlace:true } );
-		//ShaderGUI.generate(shaderGUI, "Basic FXAA", aaPass.uniforms);
+		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
+		ShaderGUI.generate(shaderGUI, "EDT", EDT_DISPLAY_AA.uniforms);
 	}
 	
 	#if debug

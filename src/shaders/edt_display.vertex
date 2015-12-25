@@ -1,7 +1,17 @@
 varying vec2 vUv;
+varying float oneu;
+varying float onev;
+
+uniform float texw;
+uniform float texh;
 
 void main()
 {
 	vUv = uv;
+	
+	// Save divisions in some of the fragment shaders
+	oneu = 1.0 / texw;
+	onev = 1.0 / texh;
+	
 	gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }

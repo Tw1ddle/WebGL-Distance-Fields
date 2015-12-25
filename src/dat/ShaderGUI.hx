@@ -21,8 +21,6 @@ class ShaderGUI {
 			switch(type) {
 				case "f":
 					folder.add(v, 'value').listen().name(key);
-				case "i":
-					folder.add(v, 'value').listen().name(key);
 				case "v2":
 					var f = folder.addFolder(key);
 					f.add(v.value, 'x').listen().name(key + "_x");

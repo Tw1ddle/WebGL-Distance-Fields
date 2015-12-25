@@ -1,11 +1,9 @@
 package;
 
+import msignal.Signal.Signal2;
 import shaders.Copy;
-import shaders.EDT.EDT_DISPLAY_AA;
 import shaders.EDT.EDT_FLOOD;
 import shaders.EDT.EDT_SEED;
-import three.ImageUtils;
-import three.Mapping;
 import three.Mesh;
 import three.OrthographicCamera;
 import three.PixelFormat;
@@ -19,15 +17,12 @@ import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import three.WebGLRenderTargetOptions;
 import three.Wrapping;
-import haxe.Timer;
-
-import msignal.Signal.Signal2;
 
 class SDFMaker {
 	private var renderer:WebGLRenderer;
-	private var texLevels:Float;
-	private var edtScene(default, null):Scene;
-	private var edtCamera(default, null):OrthographicCamera;
+	private var scene(default, null):Scene;
+	private var camera(default, null):OrthographicCamera;
+	public var texLevels(default, null):Float;
 	
 	private var renderTargetParams:WebGLRenderTargetOptions;
 	private var ping:WebGLRenderTarget;
@@ -36,20 +31,19 @@ class SDFMaker {
 	private var seedMaterial:ShaderMaterial; // Material for creating the initial seed texture
 	private var floodMaterial:ShaderMaterial; // Material for performing the EDT
 	private var copyMaterial:ShaderMaterial; // Material for copying the finalized texture elsewhere
-	//private var sdffDisplayMaterial:ShaderMaterial; // Test material for rendering the EDT'd texture
 	
 	public var signal_textureLoaded(default, null) = new Signal2<Dynamic, WebGLRenderTarget>();
 	
-	public function new(renderer:WebGLRenderer) {
-		this.renderer = renderer;
-		
+	public function new(renderer:WebGLRenderer) {		
 		texLevels = 256.0;
 		
-		edtScene = new Scene();
-		edtScene.add(new Mesh(new PlaneGeometry(1, 1)));
+		this.renderer = renderer;
 		
-		edtCamera = new OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -1, 1);
-		edtCamera.updateProjectionMatrix();
+		scene = new Scene();
+		scene.add(new Mesh(new PlaneGeometry(1, 1)));
+		
+		camera = new OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -1, 1);
+		camera.updateProjectionMatrix();
 		
 		seedMaterial = new ShaderMaterial({
 			vertexShader: EDT_SEED.vertexShader,
@@ -70,15 +64,6 @@ class SDFMaker {
 			uniforms: Copy.uniforms
 		});
 		
-		/*
-		sdffDisplayMaterial = new ShaderMaterial( { 
-			vertexShader: EDT_DISPLAY_AA.vertexShader,
-			fragmentShader: EDT_DISPLAY_AA.fragmentShader,
-			uniforms: EDT_DISPLAY_AA.uniforms 
-		});
-		sdffDisplayMaterial.derivatives = true;
-		*/
-		
 		renderTargetParams = {
 			minFilter: TextureFilter.NearestFilter,
 			magFilter: TextureFilter.NearestFilter,
@@ -93,33 +78,27 @@ class SDFMaker {
 	
 	// Performs EDT on the texture, returning a render target with the result
 	public function transformTexture(texture:Texture):WebGLRenderTarget {
-		/*
-		// Profiling
-		var start = haxe.Timer.stamp();
-		*/
+		//var start = haxe.Timer.stamp();
 		
-		seedMaterial.uniforms.tDiffuse.value = texture;
-		seedMaterial.uniforms.texLevels.value = texLevels;
+		var width = texture.image.width;
+		var height = texture.image.height;
 		
 		// Render targets, buffers for iterative EDT rendering
-		ping = new WebGLRenderTarget(texture.image.width, texture.image.height, renderTargetParams);
-		pong = new WebGLRenderTarget(texture.image.width, texture.image.height, renderTargetParams);
+		ping = new WebGLRenderTarget(width, height, renderTargetParams);
+		pong = new WebGLRenderTarget(width, height, renderTargetParams);
 		
 		// Draw seed image to first render target
-		edtScene.overrideMaterial = seedMaterial;
-		renderer.render(edtScene, edtCamera, ping, true);
-		
-		/*
-		// Test render the seed texture for viewing
-		renderer.render(edtScene, edtCamera);
-		*/
+		scene.overrideMaterial = seedMaterial;
+		seedMaterial.uniforms.tDiffuse.value = texture;
+		seedMaterial.uniforms.texLevels.value = texLevels;
+		renderer.render(scene, camera, ping, true);
 		
 		// Iteratively calculate the euclidean distance transform, ping-ponging results into the render targets
-		edtScene.overrideMaterial = floodMaterial;
+		scene.overrideMaterial = floodMaterial;
 		floodMaterial.uniforms.texLevels.value = texLevels;
-		floodMaterial.uniforms.texw.value = texture.image.width;
-		floodMaterial.uniforms.texh.value = texture.image.height;
-		var stepSize:Int = texture.image.width > texture.image.height ? Std.int(texture.image.width / 2) : Std.int(texture.image.height / 2);
+		floodMaterial.uniforms.texw.value = width;
+		floodMaterial.uniforms.texh.value = height;
+		var stepSize:Int = width > height ? Std.int(width / 2) : Std.int(height / 2);
 		var last = ping;	
 		while (stepSize > 0) {				
 			floodMaterial.uniforms.tDiffuse.value = last;
@@ -127,33 +106,24 @@ class SDFMaker {
 			
 			last == ping ? last = pong : last = ping;
 			
-			renderer.render(edtScene, edtCamera, last, true);
+			renderer.render(scene, camera, last, true);
 			
 			stepSize = Std.int(stepSize / 2);
 			
 			/*
 			// Test to display the work-in-progress texture as the jump flooding algorithm iterates
-			edtScene.overrideMaterial = copyMaterial;
-			renderer.render(edtScene, edtCamera);
-			edtScene.overrideMaterial = floodMaterial;
+			scene.overrideMaterial = copyMaterial;
+			copyMaterial.uniforms.tDiffuse.value = last;
+			renderer.render(scene, camera);
+			scene.overrideMaterial = floodMaterial;
 			*/
 		}
 		
 		/*
 		// Test to display the final result using the direct copy shader
-		edtScene.overrideMaterial = copyMaterial;
+		scene.overrideMaterial = copyMaterial;
 		copyMaterial.uniforms.tDiffuse.value = last;
-		renderer.render(edtScene, edtCamera);
-		*/
-		
-		/*
-		// Test to display the final result using the display shader
-		sdffDisplayMaterial.uniforms.tDiffuse.value = texture;
-		//sdffDisplayMaterial.uniforms.texLevels.value = texLevels;
-		sdffDisplayMaterial.uniforms.texw.value = texture.image.width;
-		sdffDisplayMaterial.uniforms.texh.value = texture.image.height;
-		edtScene.overrideMaterial = sdffDisplayMaterial;
-		renderer.render(edtScene, edtCamera);
+		renderer.render(scene, camera);
 		*/
 		
 		// Destroy the spare render target, retain the one with the result
@@ -164,13 +134,12 @@ class SDFMaker {
 			pong.dispose();
 		}
 		
-		/*
-		// End profiling
-		var duration = haxe.Timer.stamp() - start;
-		trace("TRANSFORM DURATION: " + duration);
-		*/
+		//var duration = haxe.Timer.stamp() - start;
+		//trace("Transform duration: " + duration);
 		
-		signal_textureLoaded.dispatch(texture.uuid, last);
+		scene.overrideMaterial = null;
+		
+		signal_textureLoaded.dispatch("TODO", last);
 		return last;
 	}
 }

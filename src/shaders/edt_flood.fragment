@@ -1,5 +1,6 @@
 // Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).
 // Implementation by Stefan Gustavson 2010. This code is in the public domain.
+
 // This code represents one iteration of the flood filling.
 // You need to run it multiple times with different step lengths to perform a full distance transformation.
 
@@ -66,13 +67,12 @@ void main()
 	texel = sampleTexture(tDiffuse, vUv).rgb;
 	bestseed.xy = remap(texel.rg);
 	
-	// TODO: This AA assumes texw=texh. It does not allow for non-square textures.
+	// TODO: This AA assumes texw == texh. It does not allow for non-square textures.
 	bestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset
 	bestseed.w = texel.b; // Save AA edge offset
 
 	// This code depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.
-	// The commented-out lines handle clamping to the edge explicitly to avoid propagating incorrect vectors when looking outside of [0,1] in u and/or v.
-	// These explicit conditionals cause a slowdown of about 25%. Sometimes a periodic transform with edge repeats might be what you want. In that case, the texture wrap mode can be set to GL_REPEAT, and the shader code can be left unchanged.
+	// Explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in u and/or v cause a slowdown of about 25%.
 	stepvec = vec2(-stepu, -stepv);
 	newvec = vUv + stepvec;
 	texel = sampleTexture(tDiffuse, newvec).rgb;
