@@ -1,14 +1,12 @@
 package;
 
 import dat.GUI;
-import dat.ShaderGUI;
-import dat.ThreeObjectGUI;
+import haxe.ds.ObjectMap;
 import haxe.ds.StringMap;
 import js.Browser;
 import msignal.Signal.Signal0;
 import msignal.Signal.Signal1;
 import shaders.EDT.EDT_DISPLAY_AA;
-import shaders.FXAA;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
@@ -16,15 +14,23 @@ import three.Mapping;
 import three.Mesh;
 import three.PerspectiveCamera;
 import three.PlaneGeometry;
+import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
-import shaders.EDT.EDT_DISPLAY_OVERLAY;
+import shaders.FXAA;
+import dat.ShaderGUI;
+import dat.ThreeObjectGUI;
 import shaders.EDT.EDT_DISPLAY_RGB;
+import shaders.EDT.EDT_DISPLAY_OVERLAY;
 import shaders.EDT.EDT_DISPLAY_ALPHA_THRESHOLD;
+import composer.ShaderPass;
+import composer.RenderPass;
+import composer.CopyShader;
+import shaders.Copy;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
@@ -32,7 +38,9 @@ class Main {
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
-	private var gameAttachPoint:Dynamic;	
+	private var gameAttachPoint:Dynamic;
+	
+	private var composer:EffectComposer;
 	private var renderer:WebGLRenderer;
 
 	private var scene:Scene;
@@ -40,6 +48,15 @@ class Main {
 	
 	private var sdfMaker:SDFMaker;
 	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
+	
+	private var aaMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	private var rgbMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	private var alphaThresholdMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	private var overlayMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	private var copyMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	
+	private var displayShader:String = "AA";
+	private var displayShaders = [ "AA", "RGB", "ALPHA_THRESHOLD", "OVERLAY", "COPY" ];
 	
 	public var signal_letterTyped(default, null) = new Signal1<String>();
 	public var signal_windowResized(default, null) = new Signal0();
@@ -122,6 +139,26 @@ class Main {
 		camera = new PerspectiveCamera(75, width / height, 1, 10000);
 		camera.position.z = 300;
 		
+		// Setup composer
+		composer = new EffectComposer(renderer);
+		var renderPass = new RenderPass(scene, camera);
+		composer.addPass(renderPass);
+		
+		var fxaaMaterial = new ShaderMaterial( {
+			vertexShader: FXAA.vertexShader,
+			fragmentShader: FXAA.fragmentShader,
+			uniforms: FXAA.uniforms
+		});
+		//fxaaMaterial.uniforms.tDiffuse.value 
+		//fxaaMaterial.uniforms.resolution.value.set(width, height);
+		
+		var aaPass = new ShaderPass(fxaaMaterial);
+		composer.addPass(aaPass);
+		
+		var copyPass = new ShaderPass(CopyShader);
+		composer.addPass(copyPass);
+		copyPass.renderToScreen = true;
+		
 		// Initial renderer setup
 		// Connect signals and slots
 		signal_windowResized.add(function():Void {
@@ -136,30 +173,85 @@ class Main {
 		signal_windowResized.dispatch();
 		
 		sdfMaker = new SDFMaker(renderer);
+		
 		sdfMaker.signal_textureLoaded.add(function(tag:Dynamic, target:WebGLRenderTarget):Void {
 			//trace("Loaded texture with tag: " + tag + " to target: " + target);
 			sdfMap.set(tag, target);
 			
-			var geometry = new PlaneGeometry(100, 100);
-			var material = new ShaderMaterial({
+			var geometry = new PlaneGeometry(target.width, target.height);			
+			var mesh = new Mesh(geometry);
+			
+			// Setup materials
+			var aaMaterial = new ShaderMaterial({
 				vertexShader: EDT_DISPLAY_AA.vertexShader,
 				fragmentShader: EDT_DISPLAY_AA.fragmentShader,
 				uniforms: EDT_DISPLAY_AA.uniforms
 			});
-			material.derivatives = true;
-			material.uniforms.tDiffuse.value = target;
-			material.uniforms.texw.value = target.width;
-			material.uniforms.texh.value = target.height;
-			material.uniforms.texLevels.value = sdfMaker.texLevels;
-			material.uniforms.threshold.value = 0.0;
+			aaMaterial.derivatives = true;
+			aaMaterial.uniforms.tDiffuse.value = target;
+			aaMaterial.uniforms.texw.value = target.width;
+			aaMaterial.uniforms.texh.value = target.height;
+			aaMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+			aaMaterial.uniforms.threshold.value = 0.0;
 			
-			var mesh = new Mesh(geometry, material);
+			aaMaterials.push( { mesh: mesh, material: aaMaterial, sdf: target } );
+		
+			var rgbMaterial = new ShaderMaterial({
+				vertexShader: EDT_DISPLAY_RGB.vertexShader,
+				fragmentShader: EDT_DISPLAY_RGB.fragmentShader,
+				uniforms: EDT_DISPLAY_RGB.uniforms
+			});
+			rgbMaterial.uniforms.tDiffuse.value = target;
+			rgbMaterial.uniforms.texw.value = target.width;
+			rgbMaterial.uniforms.texh.value = target.height;
+			rgbMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+			
+			rgbMaterials.push( { mesh: mesh, material: rgbMaterial, sdf: target } );
+			
+			var alphaThresholdMaterial = new ShaderMaterial({
+				vertexShader: EDT_DISPLAY_ALPHA_THRESHOLD.vertexShader,
+				fragmentShader: EDT_DISPLAY_ALPHA_THRESHOLD.fragmentShader,
+				uniforms: EDT_DISPLAY_ALPHA_THRESHOLD.uniforms
+			});
+			alphaThresholdMaterial.derivatives = true;
+			alphaThresholdMaterial.uniforms.tDiffuse.value = target;
+			alphaThresholdMaterial.uniforms.texw.value = target.width;
+			alphaThresholdMaterial.uniforms.texh.value = target.height;
+			alphaThresholdMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+			alphaThresholdMaterial.uniforms.threshold.value = 0.0;
+			
+			alphaThresholdMaterials.push( { mesh: mesh, material: alphaThresholdMaterial, sdf: target } );
+			
+			var overlayMaterial = new ShaderMaterial({
+				vertexShader: EDT_DISPLAY_OVERLAY.vertexShader,
+				fragmentShader: EDT_DISPLAY_OVERLAY.fragmentShader,
+				uniforms: EDT_DISPLAY_OVERLAY.uniforms
+			});
+			overlayMaterial.derivatives = true;
+			overlayMaterial.uniforms.tDiffuse.value = target;
+			overlayMaterial.uniforms.texw.value = target.width;
+			overlayMaterial.uniforms.texh.value = target.height;
+			overlayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+			overlayMaterial.uniforms.threshold.value = 0.0;
+			
+			overlayMaterials.push( { mesh: mesh, material: overlayMaterial, sdf: target } );
+			
+			var copyMaterial = new ShaderMaterial( {
+				vertexShader: Copy.vertexShader,
+				fragmentShader: Copy.fragmentShader,
+				uniforms: Copy.uniforms
+			});
+			copyMaterial.uniforms.tDiffuse.value = target;
+			
+			copyMaterials.push( { mesh: mesh, material: copyMaterial, sdf: target } );
+			
+			mesh.material = aaMaterial;
 			scene.add(mesh);
 			
 			setupGUI();
 		});
 		
-		loadTexture("assets/test3.png");
+		loadTexture("assets/test2.png");
 		
 		// TODO notify on context loss
 		
@@ -213,17 +305,50 @@ class Main {
 		#end
 	}
 	
-	private inline function setupGUI():Void {
+	private function setupGUI():Void {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		// TODO add shader select
+		shaderGUI.add(this, "displayShader", displayShaders).listen().onChange(onDisplayShaderChanged).name("Display Shader");
 		
 		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
-		ShaderGUI.generate(shaderGUI, "EDT DISPLAY AA", EDT_DISPLAY_AA.uniforms);
-		ShaderGUI.generate(shaderGUI, "EDT DISPLAY OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
-		ShaderGUI.generate(shaderGUI, "EDT DISPLAY RGB", EDT_DISPLAY_RGB.uniforms);
-		ShaderGUI.generate(shaderGUI, "EDT DISPLAY ALPHA THRESHOLD", EDT_DISPLAY_ALPHA_THRESHOLD.uniforms);
+		ShaderGUI.generate(shaderGUI, "AA", EDT_DISPLAY_AA.uniforms);
+		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
+		ShaderGUI.generate(shaderGUI, "ALPHA_THRESHOLD", EDT_DISPLAY_ALPHA_THRESHOLD.uniforms);
+		ShaderGUI.generate(shaderGUI, "OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
+		ShaderGUI.generate(shaderGUI, "COPY", Copy.uniforms);
+	}
+	
+	private function onAntiAliasingShaderChanged(id:String):Void {
+		switch(id) {
+			case "FXAA":
+				
+		}
+	}
+	
+	private function onDisplayShaderChanged(id:String):Void {		
+		switch(id) {
+			case "AA":
+				for (o in aaMaterials) {
+					o.mesh.material = o.material;
+				}
+			case "RGB":
+				for (o in rgbMaterials) {
+					o.mesh.material = o.material;
+				}
+			case "ALPHA_THRESHOLD":
+				for (o in alphaThresholdMaterials) {
+					o.mesh.material = o.material;
+				}
+			case "OVERLAY":
+				for (o in overlayMaterials) {
+					o.mesh.material = o.material;
+				}
+			case "COPY":
+				for (o in copyMaterials) {
+					o.mesh.material = o.material;
+				}
+		}
 	}
 	
 	#if debug

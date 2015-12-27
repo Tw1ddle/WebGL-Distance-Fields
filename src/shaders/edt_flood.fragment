@@ -43,7 +43,7 @@ vec2 remap_inv(vec2 floatvec)
      return (floatvec + 1.0) * 0.5 * texLevels / (texLevels - 1.0);
 }
 
-// TODO this isn't ideal, also does it work for most texture sizes?
+// TODO this isn't ideal, also will it work for most texture sizes?
 vec3 sampleTexture(sampler2D texture, vec2 vec)
 {
 	// The algorithm depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.
@@ -57,10 +57,11 @@ vec3 sampleTexture(sampler2D texture, vec2 vec)
 	return texture2D(texture, vec).rgb;
 }
 
-void testCandidate(in vec2 stepvec, inout vec4 newseed, inout vec4 bestseed)
+void testCandidate(in vec2 stepvec, inout vec4 bestseed)
 {
 	vec2 newvec = vUv + stepvec; // Absolute position of that candidate
 	vec3 texel = sampleTexture(tDiffuse, newvec).rgb;
+	vec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)
 	newseed.xy = remap(texel.rg);
 	if(newseed.x > -0.99999)
 	{
@@ -80,7 +81,7 @@ void testCandidate(in vec2 stepvec, inout vec4 newseed, inout vec4 bestseed)
 
 void main()
 {
-	// Searches for better distance vectors among 8 candidates	
+	// Searches for better distance vectors among 8 candidates
 	vec3 texel = sampleTexture(tDiffuse, vUv).rgb;
 	
 	// Closest seed so far
@@ -89,17 +90,14 @@ void main()
 	bestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset to distance
 	bestseed.w = texel.b; // Save AA/grayscale value
 	
-	// Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)
-	vec4 newseed;
-	
-	testCandidate(vec2(-stepu, -stepv), newseed, bestseed);
-	testCandidate(vec2(-stepu, 0.0), newseed, bestseed);
-	testCandidate(vec2(-stepu, stepv), newseed, bestseed);
-	testCandidate(vec2(0.0, -stepv), newseed, bestseed);
-	testCandidate(vec2(0.0, stepv), newseed, bestseed);
-	testCandidate(vec2(stepu, -stepv), newseed, bestseed);
-	testCandidate(vec2(stepu, 0.0), newseed, bestseed);
-	testCandidate(vec2(stepu, stepv), newseed, bestseed);
+	testCandidate(vec2(-stepu, -stepv), bestseed);
+	testCandidate(vec2(-stepu, 0.0), bestseed);
+	testCandidate(vec2(-stepu, stepv), bestseed);
+	testCandidate(vec2(0.0, -stepv), bestseed);
+	testCandidate(vec2(0.0, stepv), bestseed);
+	testCandidate(vec2(stepu, -stepv), bestseed);
+	testCandidate(vec2(stepu, 0.0), bestseed);
+	testCandidate(vec2(stepu, stepv), bestseed);
 	
 	gl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);
 }

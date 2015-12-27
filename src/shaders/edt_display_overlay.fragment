@@ -20,6 +20,13 @@ float aastep(float threshold, float value)
 	return smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))
 }
 
+// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].
+// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.
+vec2 remap(vec2 floatdata)
+{
+	return floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;
+}
+
 void main()
 {
 	// Scale texcoords to range ([0, texw], [0, texh])
@@ -33,25 +40,25 @@ void main()
 	vec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);
 	
 	// Compute distance value from four closest 8-bit RGBA texels
-	vec4 D00 = texture2D(tDiffuse, st00);
-	vec4 D10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));
-	vec4 D01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));
-	vec4 D11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));
-	
-	// Restore the values for D from their 8.8 fixed point encoding	
-	vec2 D00_10 = vec2(D00.r, D10.r) * 255.0 - 128.0 + vec2(D00.g, D10.g) * (255.0 / 256.0);
-	vec2 D01_11 = vec2(D01.r, D11.r) * 255.0 - 128.0 + vec2(D01.g, D11.g) * (255.0 / 256.0);
+	vec4 T00 = texture2D(tDiffuse, st00);
+	vec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));
+	vec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));
+	vec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));
+	float D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;
+	float D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;
+	float D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;
+	float D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;
 	
 	// Interpolate along v
-	vec2 D0_1 = mix(D00_10, D01_11, uvlerp.y);
+	vec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);
 	
 	// Interpolate along u
 	float D = mix(D0_1.x, D0_1.y, uvlerp.x);
 	
-	float c = aastep(threshold, D);
+	float g = aastep(threshold, D);
 	
 	// Retrieve the B channel to get the original grayscale image
-	float g = texture2D(tDiffuse, vUv).b;
+	float c = texture2D(tDiffuse, vUv).b;
 	
 	// Final fragment color
 	gl_FragColor = vec4(vec3(g, c, g), 1.0);

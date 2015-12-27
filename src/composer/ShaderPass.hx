@@ -1,11 +1,8 @@
 package composer;
-import three.Camera;
-import three.Color;
-import three.Material;
+
 import three.OrthographicCamera;
 import three.Renderer;
 import three.Scene;
-import three.Shader;
 import three.ShaderMaterial;
 
 @:native("THREE.ShaderPass") extern class ShaderPass {
