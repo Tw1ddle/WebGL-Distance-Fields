@@ -13,10 +13,12 @@ import three.ShaderMaterial;
 import three.Texture;
 import three.TextureDataType;
 import three.TextureFilter;
+import three.Vector2;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import three.WebGLRenderTargetOptions;
 import three.Wrapping;
+import shaders.GaussianBlur;
 
 class SDFMaker {
 	private var renderer:WebGLRenderer;
@@ -28,6 +30,7 @@ class SDFMaker {
 	private var ping:WebGLRenderTarget;
 	private var pong:WebGLRenderTarget;
 	
+	private var blurMaterial:ShaderMaterial; // Material for performing optional initial blur on the input texture
 	private var seedMaterial:ShaderMaterial; // Material for creating the initial seed texture
 	private var floodMaterial:ShaderMaterial; // Material for performing the EDT
 	private var copyMaterial:ShaderMaterial; // Material for copying the finalized texture elsewhere
@@ -44,6 +47,12 @@ class SDFMaker {
 		
 		camera = new OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -1, 1);
 		camera.updateProjectionMatrix();
+		
+		blurMaterial = new ShaderMaterial( {
+			vertexShader: GaussianBlur.vertexShader,
+			fragmentShader: GaussianBlur.fragmentShader,
+			uniforms: GaussianBlur.uniforms
+		});
 		
 		seedMaterial = new ShaderMaterial({
 			vertexShader: EDT_SEED.vertexShader,
@@ -77,8 +86,8 @@ class SDFMaker {
 	}
 	
 	// Performs EDT on the texture, returning a render target with the result
-	public function transformTexture(texture:Texture):WebGLRenderTarget {
-		//var start = haxe.Timer.stamp();
+	public function transformTexture(texture:Texture, blurInput:Bool = true):WebGLRenderTarget {
+		var start = haxe.Timer.stamp();
 		
 		var width = texture.image.width;
 		var height = texture.image.height;
@@ -87,9 +96,54 @@ class SDFMaker {
 		ping = new WebGLRenderTarget(width, height, renderTargetParams);
 		pong = new WebGLRenderTarget(width, height, renderTargetParams);
 		
+		if (blurInput) {
+			// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
+			scene.overrideMaterial = blurMaterial;
+			blurMaterial.uniforms.resolution.value.set(width, height);
+			
+			// Horizontal blur on original texture
+			blurMaterial.uniforms.tDiffuse.value = texture;
+			blurMaterial.uniforms.direction.value.set(1, 0);
+			
+			texture.minFilter = TextureFilter.LinearFilter;
+			texture.magFilter = TextureFilter.LinearFilter;
+			texture.wrapS = Wrapping.RepeatWrapping;
+			texture.wrapT = Wrapping.RepeatWrapping;
+			renderer.render(scene, camera, ping, true);
+			texture.wrapS = Wrapping.ClampToEdgeWrapping;
+			texture.wrapT = Wrapping.ClampToEdgeWrapping;
+			texture.minFilter = TextureFilter.NearestFilter;
+			texture.magFilter = TextureFilter.NearestFilter;
+			
+			// Vertical blur on first render buffer
+			blurMaterial.uniforms.tDiffuse.value = ping;
+			blurMaterial.uniforms.direction.value.set(0, 1);
+			
+			ping.minFilter = TextureFilter.LinearFilter;
+			ping.magFilter = TextureFilter.LinearFilter;
+			ping.wrapS = Wrapping.RepeatWrapping;
+			ping.wrapT = Wrapping.RepeatWrapping;
+			renderer.render(scene, camera, pong, true);
+			ping.wrapS = Wrapping.ClampToEdgeWrapping;
+			ping.wrapT = Wrapping.ClampToEdgeWrapping;
+			ping.minFilter = TextureFilter.NearestFilter;
+			ping.magFilter = TextureFilter.NearestFilter;
+			
+			/*
+			// Test to display the blurred input texture
+			scene.overrideMaterial = copyMaterial;
+			copyMaterial.uniforms.tDiffuse.value = pong;
+			renderer.render(scene, camera);
+			*/
+		}
+		
 		// Draw seed image to first render target
 		scene.overrideMaterial = seedMaterial;
-		seedMaterial.uniforms.tDiffuse.value = texture;
+		if (blurInput) {
+			seedMaterial.uniforms.tDiffuse.value = pong;
+		} else {
+			seedMaterial.uniforms.tDiffuse.value = texture;
+		}
 		seedMaterial.uniforms.texLevels.value = texLevels;
 		renderer.render(scene, camera, ping, true);
 		
@@ -99,7 +153,7 @@ class SDFMaker {
 		floodMaterial.uniforms.texw.value = width;
 		floodMaterial.uniforms.texh.value = height;
 		var stepSize:Int = width > height ? Std.int(width / 2) : Std.int(height / 2);
-		var last = ping;	
+		var last = ping;
 		while (stepSize > 0) {				
 			floodMaterial.uniforms.tDiffuse.value = last;
 			floodMaterial.uniforms.step.value = stepSize;
@@ -134,8 +188,8 @@ class SDFMaker {
 			pong.dispose();
 		}
 		
-		//var duration = haxe.Timer.stamp() - start;
-		//trace("Transform duration: " + duration);
+		var duration = haxe.Timer.stamp() - start;
+		trace("Transform duration: " + duration);
 		
 		scene.overrideMaterial = null;
 		

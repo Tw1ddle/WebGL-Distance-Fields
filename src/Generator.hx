@@ -16,7 +16,7 @@ class Generator {
 		canvas.height = size;
 		
 		// Get context
-		var context = canvas.getContext('2d');
+		var context = canvas.getContext('2d', {alpha: false});
 		
 		// Draw circle
 		var centerX = size / 2;
@@ -24,10 +24,36 @@ class Generator {
 		var radius = size / 2;
 		
 		context.beginPath();
-		context.arc(centerX, centerY, radius, 0, Math.PI / 2, false);
+		context.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
 		context.fillStyle = "#ffffff";
 		context.fill();
 
+		return canvas;
+	}
+	
+	public static function generateText(s:String):Dynamic {
+		var canvas = cast Browser.document.createElement('canvas');
+		canvas.width = 128;
+		canvas.height = 128;
+		canvas.style.background = 'black';
+		
+		var context = canvas.getContext('2d');
+		
+		context.fillStyle = "#ffffff";
+		context.font = "120px SweetlyBroken";
+		context.textBaseline = "middle";
+		context.textAlign = "center";
+		context.antialias = "subpixel";
+		context.imageSmoothingEnabled = true;
+		
+		context.fillText(s, canvas.width / 2, canvas.height / 2);
+		
+		context.translate(0.5, 0.5);
+		
+		Browser.document.body.appendChild(cast canvas);
+		
+		//context.fill();
+		
 		return canvas;
 	}
 }

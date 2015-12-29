@@ -31,6 +31,7 @@ import composer.ShaderPass;
 import composer.RenderPass;
 import composer.CopyShader;
 import shaders.Copy;
+import js.html.CanvasElement;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
@@ -53,10 +54,10 @@ class Main {
 	private var rgbMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var alphaThresholdMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var overlayMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	private var copyMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	private var passthroughMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	
 	private var displayShader:String = "AA";
-	private var displayShaders = [ "AA", "RGB", "ALPHA_THRESHOLD", "OVERLAY", "COPY" ];
+	private var displayShaders = [ "AA", "RGB", "ALPHA_THRESHOLD", "OVERLAY", "PASSTHROUGH" ];
 	
 	public var signal_letterTyped(default, null) = new Signal1<String>();
 	public var signal_windowResized(default, null) = new Signal0();
@@ -132,8 +133,8 @@ class Main {
 		gameAttachPoint = Browser.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
 		
-		var width = Browser.window.innerWidth * renderer.getPixelRatio();
-		var height = Browser.window.innerHeight * renderer.getPixelRatio();
+		var width = 400 * renderer.getPixelRatio();
+		var height = 400 * renderer.getPixelRatio();
 		
 		scene = new Scene();
 		camera = new PerspectiveCamera(75, width / height, 1, 10000);
@@ -162,8 +163,8 @@ class Main {
 		// Initial renderer setup
 		// Connect signals and slots
 		signal_windowResized.add(function():Void {
-			var width = Browser.window.innerWidth * renderer.getPixelRatio();
-			var height = Browser.window.innerHeight * renderer.getPixelRatio();
+			var width = 400 * renderer.getPixelRatio();
+			var height = 400 * renderer.getPixelRatio();
 			
 			renderer.setSize(width, height);
 			
@@ -178,6 +179,7 @@ class Main {
 			//trace("Loaded texture with tag: " + tag + " to target: " + target);
 			sdfMap.set(tag, target);
 			
+			for(i in 0...20) {
 			var geometry = new PlaneGeometry(target.width, target.height);			
 			var mesh = new Mesh(geometry);
 			
@@ -243,15 +245,20 @@ class Main {
 			});
 			copyMaterial.uniforms.tDiffuse.value = target;
 			
-			copyMaterials.push( { mesh: mesh, material: copyMaterial, sdf: target } );
+			passthroughMaterials.push( { mesh: mesh, material: copyMaterial, sdf: target } );
 			
 			mesh.material = aaMaterial;
 			scene.add(mesh);
 			
+			mesh.position.set(Math.random() * 500, Math.random() * 500, Math.random() * 500);
+			}
+			
 			setupGUI();
 		});
 		
-		loadTexture("assets/test2.png");
+		//loadTexture("assets/test8.png");
+		
+		loadCanvas(Generator.generateText("أَ"));
 		
 		// TODO notify on context loss
 		
@@ -288,6 +295,12 @@ class Main {
 		});
 	}
 	
+	private inline function loadCanvas(element:CanvasElement):Void {
+		var texture = new Texture(element, Mapping.UVMapping);
+		texture.needsUpdate = true;
+		sdfMaker.transformTexture(texture);
+	}
+	
 	private function animate(time:Float):Void {
 		#if debug
 		stats.begin();
@@ -316,7 +329,7 @@ class Main {
 		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
 		ShaderGUI.generate(shaderGUI, "ALPHA_THRESHOLD", EDT_DISPLAY_ALPHA_THRESHOLD.uniforms);
 		ShaderGUI.generate(shaderGUI, "OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
-		ShaderGUI.generate(shaderGUI, "COPY", Copy.uniforms);
+		ShaderGUI.generate(shaderGUI, "PASSTHROUGH", Copy.uniforms);
 	}
 	
 	private function onAntiAliasingShaderChanged(id:String):Void {
@@ -344,8 +357,8 @@ class Main {
 				for (o in overlayMaterials) {
 					o.mesh.material = o.material;
 				}
-			case "COPY":
-				for (o in copyMaterials) {
+			case "PASSTHROUGH":
+				for (o in passthroughMaterials) {
 					o.mesh.material = o.material;
 				}
 		}
