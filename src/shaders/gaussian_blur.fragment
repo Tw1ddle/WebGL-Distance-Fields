@@ -1,20 +1,28 @@
 // Efficient Gaussian blur with linear sampling, based on https://github.com/Jam3/glsl-fast-gaussian-blur by Jam3
-// Also from http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/ by Daniel Rakos (aqnuep)
-// Must use on a texture that has linear (gl.LINEAR) filtering, the linear sampling approach uses this to get info about two adjacent pixels cheaply, making it faster than discrete sampling
-// Separable blur passes, because it is usually faster to do separate horizontal and vertical passes, rather than a single pass that involves extra texture lookups
+// Also see http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/ by Daniel Rakos
+// Must use on a texture that has linear (gl.LINEAR) filtering, the linear sampling approach requires this to get info about two adjacent pixels from one texture read, making it faster than discrete sampling
+// Requires a horizontal and vertical pass to perform the full blur. It is written this way because a single pass involves many more texture reads
 
 varying vec2 vUv;
 
 uniform sampler2D tDiffuse;
 uniform vec2 resolution;
 uniform vec2 direction;
+uniform int flip;
 
 void main()
 {
+	vec2 uv = vUv;
+	
+	if(flip != 0)
+	{
+		uv.y = 1.0 - uv.y;
+	}
+	
 	vec2 offset = vec2(1.3333333333333333) * direction;
 	vec4 color = vec4(0.0);
-	color += texture2D(tDiffuse, vUv) * 0.29411764705882354;
-	color += texture2D(tDiffuse, vUv + (offset / resolution)) * 0.35294117647058826;
-	color += texture2D(tDiffuse, vUv - (offset / resolution)) * 0.35294117647058826;
+	color += texture2D(tDiffuse, uv) * 0.29411764705882354;
+	color += texture2D(tDiffuse, uv + (offset / resolution)) * 0.35294117647058826;
+	color += texture2D(tDiffuse, uv - (offset / resolution)) * 0.35294117647058826;
 	gl_FragColor = color;
 }

@@ -40,7 +40,7 @@ class Generator {
 		var context = canvas.getContext('2d');
 		
 		context.fillStyle = "#ffffff";
-		context.font = "120px SweetlyBroken";
+		context.font = "120px Consolas";
 		context.textBaseline = "middle";
 		context.textAlign = "center";
 		context.antialias = "subpixel";
@@ -48,11 +48,7 @@ class Generator {
 		
 		context.fillText(s, canvas.width / 2, canvas.height / 2);
 		
-		context.translate(0.5, 0.5);
-		
 		Browser.document.body.appendChild(cast canvas);
-		
-		//context.fill();
 		
 		return canvas;
 	}

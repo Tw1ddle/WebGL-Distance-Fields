@@ -4,6 +4,7 @@ import msignal.Signal.Signal2;
 import shaders.Copy;
 import shaders.EDT.EDT_FLOOD;
 import shaders.EDT.EDT_SEED;
+import shaders.GaussianBlur;
 import three.Mesh;
 import three.OrthographicCamera;
 import three.PixelFormat;
@@ -13,12 +14,10 @@ import three.ShaderMaterial;
 import three.Texture;
 import three.TextureDataType;
 import three.TextureFilter;
-import three.Vector2;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import three.WebGLRenderTargetOptions;
 import three.Wrapping;
-import shaders.GaussianBlur;
 
 class SDFMaker {
 	private var renderer:WebGLRenderer;
@@ -86,8 +85,10 @@ class SDFMaker {
 	}
 	
 	// Performs EDT on the texture, returning a render target with the result
-	public function transformTexture(texture:Texture, blurInput:Bool = true):WebGLRenderTarget {
+	public function transformTexture(texture:Texture, id:Dynamic, blurInput:Bool = true):WebGLRenderTarget {
+		#if debug
 		var start = haxe.Timer.stamp();
+		#end
 		
 		var width = texture.image.width;
 		var height = texture.image.height;
@@ -180,6 +181,8 @@ class SDFMaker {
 		renderer.render(scene, camera);
 		*/
 		
+		scene.overrideMaterial = null;
+		
 		// Destroy the spare render target, retain the one with the result
 		if (last != ping) {
 			ping.dispose();
@@ -188,12 +191,12 @@ class SDFMaker {
 			pong.dispose();
 		}
 		
+		#if debug
 		var duration = haxe.Timer.stamp() - start;
 		trace("Transform duration: " + duration);
+		#end
 		
-		scene.overrideMaterial = null;
-		
-		signal_textureLoaded.dispatch("TODO", last);
+		signal_textureLoaded.dispatch(id, last);
 		return last;
 	}
 }

@@ -1,12 +1,18 @@
 package;
 
 import dat.GUI;
-import haxe.ds.ObjectMap;
+import dat.ShaderGUI;
+import dat.ThreeObjectGUI;
 import haxe.ds.StringMap;
 import js.Browser;
+import js.html.CanvasElement;
 import msignal.Signal.Signal0;
 import msignal.Signal.Signal1;
+import shaders.Copy;
 import shaders.EDT.EDT_DISPLAY_AA;
+import shaders.EDT.EDT_DISPLAY_ALPHA_THRESHOLD;
+import shaders.EDT.EDT_DISPLAY_OVERLAY;
+import shaders.EDT.EDT_DISPLAY_RGB;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
@@ -14,24 +20,18 @@ import three.Mapping;
 import three.Mesh;
 import three.PerspectiveCamera;
 import three.PlaneGeometry;
-import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
-import shaders.FXAA;
-import dat.ShaderGUI;
-import dat.ThreeObjectGUI;
-import shaders.EDT.EDT_DISPLAY_RGB;
-import shaders.EDT.EDT_DISPLAY_OVERLAY;
-import shaders.EDT.EDT_DISPLAY_ALPHA_THRESHOLD;
-import composer.ShaderPass;
-import composer.RenderPass;
-import composer.CopyShader;
-import shaders.Copy;
-import js.html.CanvasElement;
+
+import binpacking.MaxRectsPack;
+import binpacking.NaiveShelfPack;
+import binpacking.OptimizedMaxRectsPack;
+import binpacking.GuillotinePack;
+import binpacking.SkylinePack;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
@@ -41,13 +41,13 @@ class Main {
 	
 	private var gameAttachPoint:Dynamic;
 	
-	private var composer:EffectComposer;
 	private var renderer:WebGLRenderer;
 
 	private var scene:Scene;
 	private var camera:PerspectiveCamera;
 	
 	private var sdfMaker:SDFMaker;
+	private var keyStrInput:Array<Dynamic> = new Array<Dynamic>();
 	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
 	
 	private var aaMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
@@ -138,27 +138,7 @@ class Main {
 		
 		scene = new Scene();
 		camera = new PerspectiveCamera(75, width / height, 1, 10000);
-		camera.position.z = 300;
-		
-		// Setup composer
-		composer = new EffectComposer(renderer);
-		var renderPass = new RenderPass(scene, camera);
-		composer.addPass(renderPass);
-		
-		var fxaaMaterial = new ShaderMaterial( {
-			vertexShader: FXAA.vertexShader,
-			fragmentShader: FXAA.fragmentShader,
-			uniforms: FXAA.uniforms
-		});
-		//fxaaMaterial.uniforms.tDiffuse.value 
-		//fxaaMaterial.uniforms.resolution.value.set(width, height);
-		
-		var aaPass = new ShaderPass(fxaaMaterial);
-		composer.addPass(aaPass);
-		
-		var copyPass = new ShaderPass(CopyShader);
-		composer.addPass(copyPass);
-		copyPass.renderToScreen = true;
+		camera.position.z = 80;
 		
 		// Initial renderer setup
 		// Connect signals and slots
@@ -175,11 +155,14 @@ class Main {
 		
 		sdfMaker = new SDFMaker(renderer);
 		
-		sdfMaker.signal_textureLoaded.add(function(tag:Dynamic, target:WebGLRenderTarget):Void {
+		sdfMaker.signal_textureLoaded.add(function(id:Dynamic, target:WebGLRenderTarget):Void {
 			//trace("Loaded texture with tag: " + tag + " to target: " + target);
-			sdfMap.set(tag, target);
+			if (sdfMap.exists(id)) {
+				return; // SDF texture already exists, so exit early
+			}
 			
-			for(i in 0...20) {
+			sdfMap.set(id, target);
+			
 			var geometry = new PlaneGeometry(target.width, target.height);			
 			var mesh = new Mesh(geometry);
 			
@@ -250,15 +233,10 @@ class Main {
 			mesh.material = aaMaterial;
 			scene.add(mesh);
 			
-			mesh.position.set(Math.random() * 500, Math.random() * 500, Math.random() * 500);
-			}
-			
-			setupGUI();
+			mesh.position.set(0, 0, 0);
 		});
 		
 		//loadTexture("assets/test8.png");
-		
-		loadCanvas(Generator.generateText("أَ"));
 		
 		// TODO notify on context loss
 		
@@ -274,7 +252,19 @@ class Main {
 		}, true);
 		
 		Browser.window.addEventListener("keypress", function(event) {
-			var keycode = event.keycode;
+			var keycode = event.keyCode == null ? event.keyCode : event.charCode;			
+			var keyStr = String.fromCharCode(keycode);
+			
+			// Don't accept the same string input more than once (as we'll have already generated that text before)
+			if (keyStrInput.indexOf(keyStr) != -1) {
+				return;
+			}
+			
+			if (sdfMap.exists(keyStr)) {
+				return;
+			}
+			
+			loadCanvas(Generator.generateText(keyStr), keyStr);
 			
 			event.preventDefault();
 		}, true);
@@ -284,21 +274,31 @@ class Main {
 		setupStats();
 		#end
 		
+		setupGUI();
+			
 		// Present game and start animation loop
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
 	}
 	
+	private function saveToFile():Void {
+		// TODO pack all the RenderTargets into texture(s)
+		// TODO save a JSON file or something with info about the texture(s)
+		//for (sdf in sdfMap) {
+		//	sdf.
+		//}
+	}
+	
 	private inline function loadTexture(url:String):Void {
 		var texture = ImageUtils.loadTexture(url, Mapping.UVMapping, function(texture:Texture):Void {
-			sdfMaker.transformTexture(texture);
+			sdfMaker.transformTexture(texture, "");
 		});
 	}
 	
-	private inline function loadCanvas(element:CanvasElement):Void {
+	private inline function loadCanvas(element:CanvasElement, id:Dynamic):Void {
 		var texture = new Texture(element, Mapping.UVMapping);
 		texture.needsUpdate = true;
-		sdfMaker.transformTexture(texture);
+		sdfMaker.transformTexture(texture, id);
 	}
 	
 	private function animate(time:Float):Void {
@@ -324,19 +324,11 @@ class Main {
 		
 		shaderGUI.add(this, "displayShader", displayShaders).listen().onChange(onDisplayShaderChanged).name("Display Shader");
 		
-		ShaderGUI.generate(shaderGUI, "FXAA", FXAA.uniforms);
 		ShaderGUI.generate(shaderGUI, "AA", EDT_DISPLAY_AA.uniforms);
 		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
 		ShaderGUI.generate(shaderGUI, "ALPHA_THRESHOLD", EDT_DISPLAY_ALPHA_THRESHOLD.uniforms);
 		ShaderGUI.generate(shaderGUI, "OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
 		ShaderGUI.generate(shaderGUI, "PASSTHROUGH", Copy.uniforms);
-	}
-	
-	private function onAntiAliasingShaderChanged(id:String):Void {
-		switch(id) {
-			case "FXAA":
-				
-		}
 	}
 	
 	private function onDisplayShaderChanged(id:String):Void {		
