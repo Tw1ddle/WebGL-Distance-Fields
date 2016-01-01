@@ -3,3 +3,4 @@
 -lib actuate
 -lib msignal
 -lib sure
+-lib bin-packing

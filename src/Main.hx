@@ -27,12 +27,6 @@ import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
 
-import binpacking.MaxRectsPack;
-import binpacking.NaiveShelfPack;
-import binpacking.OptimizedMaxRectsPack;
-import binpacking.GuillotinePack;
-import binpacking.SkylinePack;
-
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
 	public static inline var WEBSITE_URL:String = "http://samcodes.co.uk/";
@@ -47,8 +41,10 @@ class Main {
 	private var camera:PerspectiveCamera;
 	
 	private var sdfMaker:SDFMaker;
-	private var keyStrInput:Array<Dynamic> = new Array<Dynamic>();
+	private var sdfAtlasMaker:SDFAtlasMaker;
 	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
+	
+	private var keyStrInput:Array<Dynamic> = new Array<Dynamic>();
 	
 	private var aaMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var rgbMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
@@ -154,14 +150,13 @@ class Main {
 		signal_windowResized.dispatch();
 		
 		sdfMaker = new SDFMaker(renderer);
+		sdfAtlasMaker = new SDFAtlasMaker(sdfMap);
 		
 		sdfMaker.signal_textureLoaded.add(function(id:Dynamic, target:WebGLRenderTarget):Void {
 			//trace("Loaded texture with tag: " + tag + " to target: " + target);
 			if (sdfMap.exists(id)) {
 				return; // SDF texture already exists, so exit early
 			}
-			
-			sdfMap.set(id, target);
 			
 			var geometry = new PlaneGeometry(target.width, target.height);			
 			var mesh = new Mesh(geometry);
@@ -234,6 +229,8 @@ class Main {
 			scene.add(mesh);
 			
 			mesh.position.set(0, 0, 0);
+			
+			sdfMap.set(id, target);
 		});
 		
 		//loadTexture("assets/test8.png");
@@ -279,14 +276,6 @@ class Main {
 		// Present game and start animation loop
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
-	}
-	
-	private function saveToFile():Void {
-		// TODO pack all the RenderTargets into texture(s)
-		// TODO save a JSON file or something with info about the texture(s)
-		//for (sdf in sdfMap) {
-		//	sdf.
-		//}
 	}
 	
 	private inline function loadTexture(url:String):Void {
