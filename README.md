@@ -1,6 +1,6 @@
-![Project logo](https://github.com/Tw1ddle/WebGLDistanceFields/blob/master/screenshots/webgl_distance_fields_logo.png?raw=true "WebGL Distance Fields Logo")
+![Project logo](screenshots/webgl_distance_fields_logo.png?raw=true "WebGL Distance Fields Logo")
 
-Hardware-accelerated antialiased Euclidean distance field generator and renderer. Made for signed distance field fonts and text rendering.
+Hardware-accelerated Euclidean distance field generator and renderer. Made for signed distance field fonts and text rendering.
 
 Try it out now [in your browser](http://www.samcodes.co.uk/project/webgl-distance-fields/).
 
@@ -23,13 +23,11 @@ https://www.youtube.com/watch?v=F_9InURkQNs
 https://www.youtube.com/watch?v=_PLq0_7k1jk
 ```
 
-To build on this code, you can work on the [Haxe](http://haxe.org/). FlashDevelop is good for Haxe development on Windows. You could also edit the generated JavaScript and shaders directly.
-
 ## Screenshots ##
 
-![Screenshot](https://github.com/Tw1ddle/WebGLDistanceFields/blob/master/screenshots/screenshot1.png?raw=true "WebGL Distance Fields Screenshot 1")
+![Screenshot](screenshots/screenshot1.png?raw=true "WebGL Distance Fields Screenshot 1")
 
-![Screenshot](https://github.com/Tw1ddle/WebGLDistanceFields/blob/master/screenshots/screenshot2.png?raw=true "WebGL Distance Fields Screenshot 2")
+![Screenshot](screenshots/screenshot2.png?raw=true "WebGL Distance Fields Screenshot 2")
 
 ## How It Works ##
 

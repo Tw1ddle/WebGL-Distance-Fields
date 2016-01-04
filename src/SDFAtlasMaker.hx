@@ -10,7 +10,8 @@ import three.TextureFilter;
 import three.WebGLRenderTarget;
 import three.Wrapping;
 
-typedef BinMap = ObjectMap<SimplifiedMaxRectsPacker, Array<{ rect: Rect, sdf: WebGLRenderTarget }>>;
+typedef Bin = Array<{ rect: Rect, sdf: WebGLRenderTarget }>; // TODO use something other than Rect type, so we can add info such as filenames/letters/keycodes/flipped flag etc?
+typedef BinMap = ObjectMap<SimplifiedMaxRectsPacker, Bin>;
 
 class SDFAtlasMaker {
 	private var sdfMap:StringMap<WebGLRenderTarget>;
@@ -22,7 +23,7 @@ class SDFAtlasMaker {
 	private function buildBinMap():BinMap {
 		var bins = new Array<SimplifiedMaxRectsPacker>();
 		
-		var binSize = getStartingBinSize(1024, 1024); // TODO get default bin size
+		var binSize = getStartingBinSize(1024, 1024); // TODO get a default bin size
 		
 		bins.push(new SimplifiedMaxRectsPacker(binSize.width, binSize.height));
 		
@@ -51,6 +52,7 @@ class SDFAtlasMaker {
 		return binMap;
 	}
 	
+	// Writes the contents of the bins to an array of render targets, which it returns
 	private function writeTextures(map:BinMap):Array<WebGLRenderTarget> {
 		// Exit early if no distance fields have been generated yet
 		if (sdfCount() == 0) {
@@ -89,15 +91,21 @@ class SDFAtlasMaker {
 	}
 	
 	// Generate Json for bin/spritesheet contents
-	private function generateJson(map:BinMap):String {
+	private function generateJson(map:Bin):String {
 		var entry = '{"frames": {';
 		
-		var body = ""; // Store x,y,w,h
+		var body = ""; // TODO Store x,y,w,h,rotated... fontmetrics or whatever later?
+		
 		
 		var exit = '} }';
 		
 		return entry + body + exit;
 	}
+	
+	// Parse Json for bin/spritesheet contents
+	//private function readJson(json:String):Array<Rect> {
+	//	
+	//}
 	
 	// Get the starting POT bin size
 	private function getStartingBinSize(width:Int, height:Int): { width:Int, height:Int } {		
