@@ -26,9 +26,8 @@ The distance field renderer uses the distance field to generate smooth shapes th
 ![Screenshot](screenshots/screenshot2.png?raw=true "WebGL Distance Fields Screenshot 2")
 
 ## Notes ##
-* The parallel Euclidean distance transform and rendering shaders are based on Chapter 12 of [OpenGL Insights](http://openglinsights.com/) by Stefan Gustavson.
-* This uses the Haxe libraries actuate, msignal and Sure. You can get these from [haxelib](http://lib.haxe.org/).
-* If you have any questions or suggestions then [get in touch](http://samcodes.co.uk/contact).
+* This was based on Chapter 12 of [OpenGL Insights](http://openglinsights.com/) by Stefan Gustavson.
+* This uses the actuate, Sure and msignal Haxe libraries from [haxelib](http://lib.haxe.org/).
 
 ## License ##
 The demo webpage is CC BY-NC. The distance field shaders are public domain. All other code is MIT licensed, unless otherwise noted.
