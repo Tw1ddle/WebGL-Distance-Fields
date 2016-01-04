@@ -2,18 +2,18 @@
 
 WORK IN PROGRESS
 
-Fast Euclidean distance field generation and renderering using WebGL. Try the demo [in your browser](http://www.samcodes.co.uk/project/webgl-distance-fields/).
+Fast Euclidean distance field generation and rendering using WebGL. Try the demo [in your browser](http://www.samcodes.co.uk/project/webgl-distance-fields/).
 
 ## Features ##
 * Generates distance fields in realtime with the GPU.
-* Drag-and-drop local media for conversion.
-* Configurable shader settings.
+* Configurable generation and display settings.
+* Drag-and-drop local images for conversion.
 
 ## How It Works ##
 
-The distance field generation shaders calculate the Euclidean distance transform of textures using the jump flooding algorithm by [Guodong Rong](http://www.comp.nus.edu.sg/~tants/jfa/i3d06.pdf), and is based on an implementation by [Stefan Gustavson](https://github.com/OpenGLInsights/OpenGLInsightsCode).
+This code computes the Euclidean distance transform of a texture in parallel on the GPU. This implementation takes the anti-aliased edges of the foreground into account, producing fractional distances in the output.
 
-The distance from the nearest contour of the foreground of the image is encoded into the output texture, along with an additional value for anti-aliased edges. The distance field renderer uses this information to draw smooth shapes through a combination of thresholding, interpolation and anti-aliasing.
+The rendering shaders use the produced distance field textures as the input and use a combination of thresholding and interpolation to produce smooth, accurate foreground shapes.
 
 ## Screenshots ##
 
@@ -27,4 +27,4 @@ The distance from the nearest contour of the foreground of the image is encoded 
 * Written using [Haxe](http://haxe.org/) and [three.js](http://threejs.org/).
 
 ## License ##
-The demo webpage is CC BY-NC. The distance field shaders are in the public domain. The rest is MIT, unless otherwise noted.
+The distance field shaders are in the public domain. The rest is MIT licensed, except where noted otherwise.
