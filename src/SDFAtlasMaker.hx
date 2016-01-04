@@ -88,11 +88,19 @@ class SDFAtlasMaker {
 		return targets;
 	}
 	
+	// Generate Json for bin/spritesheet contents
 	private function generateJson(map:BinMap):String {
-		return "todo";
+		var entry = '{"frames": {';
+		
+		var body = ""; // Store x,y,w,h
+		
+		var exit = '} }';
+		
+		return entry + body + exit;
 	}
 	
-	private function getStartingBinSize(defaultWidth:Int, defaultHeight:Int): { width:Int, height:Int } {		
+	// Get the starting POT bin size
+	private function getStartingBinSize(width:Int, height:Int): { width:Int, height:Int } {		
 		// Set the lower width and height bounds to the size of the largest render target rounded up to the nearest power of 2
 		var maxWidth:Int = 0;
 		var maxHeight:Int = 0;
@@ -106,14 +114,14 @@ class SDFAtlasMaker {
 		}
 		maxWidth = nextPowerOfTwo(maxWidth);
 		maxHeight = nextPowerOfTwo(maxHeight);
-		if (maxWidth > defaultWidth) {
-			defaultWidth = maxWidth;
+		if (maxWidth > width) {
+			width = maxWidth;
 		}
-		if (maxHeight > defaultHeight) {
-			defaultHeight = maxHeight;
+		if (maxHeight > height) {
+			height = maxHeight;
 		}
 		
-		return { width:defaultWidth, height:defaultHeight };
+		return { width:width, height:height };
 	}
 	
 	// Number of map entries
