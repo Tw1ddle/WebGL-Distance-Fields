@@ -243,7 +243,7 @@ class Main {
 				return;
 			}
 			
-			loadCanvas(Generator.generateText(keyStr), keyStr);
+			loadCanvas(TextGenerator.generateText(keyStr), keyStr);
 			
 			event.preventDefault();
 		}, true);
