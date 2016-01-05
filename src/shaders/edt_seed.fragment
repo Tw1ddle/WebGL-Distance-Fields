@@ -20,6 +20,6 @@ void main()
 	// Sub-pixel AA distance
 	float aadist = texel;
 	
-	// Pixels > 0.5 are objects, others are background (?????)
+	// Pixels > 0.5 are objects, others are background
 	gl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);
 }

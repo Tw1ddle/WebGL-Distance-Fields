@@ -10,7 +10,6 @@ import msignal.Signal.Signal0;
 import msignal.Signal.Signal1;
 import shaders.Copy;
 import shaders.EDT.EDT_DISPLAY_AA;
-import shaders.EDT.EDT_DISPLAY_ALPHA_THRESHOLD;
 import shaders.EDT.EDT_DISPLAY_OVERLAY;
 import shaders.EDT.EDT_DISPLAY_RGB;
 import stats.Stats;
@@ -36,24 +35,22 @@ class Main {
 	private var gameAttachPoint:Dynamic;
 	
 	private var renderer:WebGLRenderer;
-
+	
 	private var scene:Scene;
 	private var camera:PerspectiveCamera;
 	
 	private var sdfMaker:SDFMaker;
-	private var sdfAtlasMaker:SDFAtlasMaker;
 	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
 	
 	private var keyStrInput:Array<Dynamic> = new Array<Dynamic>();
 	
 	private var aaMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var rgbMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	private var alphaThresholdMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var overlayMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var passthroughMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	
 	private var displayShader:String = "AA";
-	private var displayShaders = [ "AA", "RGB", "ALPHA_THRESHOLD", "OVERLAY", "PASSTHROUGH" ];
+	private var displayShaders = [ "AA", "OVERLAY", "RGB", "PASSTHROUGH" ];
 	
 	public var signal_letterTyped(default, null) = new Signal1<String>();
 	public var signal_windowResized(default, null) = new Signal0();
@@ -150,7 +147,6 @@ class Main {
 		signal_windowResized.dispatch();
 		
 		sdfMaker = new SDFMaker(renderer);
-		sdfAtlasMaker = new SDFAtlasMaker(sdfMap);
 		
 		sdfMaker.signal_textureLoaded.add(function(id:Dynamic, target:WebGLRenderTarget):Void {
 			//trace("Loaded texture with tag: " + tag + " to target: " + target);
@@ -188,20 +184,6 @@ class Main {
 			
 			rgbMaterials.push( { mesh: mesh, material: rgbMaterial, sdf: target } );
 			
-			var alphaThresholdMaterial = new ShaderMaterial({
-				vertexShader: EDT_DISPLAY_ALPHA_THRESHOLD.vertexShader,
-				fragmentShader: EDT_DISPLAY_ALPHA_THRESHOLD.fragmentShader,
-				uniforms: EDT_DISPLAY_ALPHA_THRESHOLD.uniforms
-			});
-			alphaThresholdMaterial.derivatives = true;
-			alphaThresholdMaterial.uniforms.tDiffuse.value = target;
-			alphaThresholdMaterial.uniforms.texw.value = target.width;
-			alphaThresholdMaterial.uniforms.texh.value = target.height;
-			alphaThresholdMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-			alphaThresholdMaterial.uniforms.threshold.value = 0.0;
-			
-			alphaThresholdMaterials.push( { mesh: mesh, material: alphaThresholdMaterial, sdf: target } );
-			
 			var overlayMaterial = new ShaderMaterial({
 				vertexShader: EDT_DISPLAY_OVERLAY.vertexShader,
 				fragmentShader: EDT_DISPLAY_OVERLAY.fragmentShader,
@@ -233,7 +215,7 @@ class Main {
 			sdfMap.set(id, target);
 		});
 		
-		//loadTexture("assets/test8.png");
+		loadTexture("assets/test2.png");
 		
 		// TODO notify on context loss
 		
@@ -280,14 +262,14 @@ class Main {
 	
 	private inline function loadTexture(url:String):Void {
 		var texture = ImageUtils.loadTexture(url, Mapping.UVMapping, function(texture:Texture):Void {
-			sdfMaker.transformTexture(texture, "");
+			sdfMaker.transformTexture(texture, "", false);
 		});
 	}
 	
 	private inline function loadCanvas(element:CanvasElement, id:Dynamic):Void {
 		var texture = new Texture(element, Mapping.UVMapping);
 		texture.needsUpdate = true;
-		sdfMaker.transformTexture(texture, id);
+		sdfMaker.transformTexture(texture, id, true);
 	}
 	
 	private function animate(time:Float):Void {
@@ -314,9 +296,8 @@ class Main {
 		shaderGUI.add(this, "displayShader", displayShaders).listen().onChange(onDisplayShaderChanged).name("Display Shader");
 		
 		ShaderGUI.generate(shaderGUI, "AA", EDT_DISPLAY_AA.uniforms);
-		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
-		ShaderGUI.generate(shaderGUI, "ALPHA_THRESHOLD", EDT_DISPLAY_ALPHA_THRESHOLD.uniforms);
 		ShaderGUI.generate(shaderGUI, "OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
+		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
 		ShaderGUI.generate(shaderGUI, "PASSTHROUGH", Copy.uniforms);
 	}
 	
@@ -328,10 +309,6 @@ class Main {
 				}
 			case "RGB":
 				for (o in rgbMaterials) {
-					o.mesh.material = o.material;
-				}
-			case "ALPHA_THRESHOLD":
-				for (o in alphaThresholdMaterials) {
 					o.mesh.material = o.material;
 				}
 			case "OVERLAY":

@@ -37,7 +37,7 @@ class EDT_DISPLAY_AA {
 	public static var fragmentShader = FileReader.readFile("shaders/edt_display_aa.fragment");
 }
 
-// Displays distance field as antialiased black/white with the original grayscale image overlaid
+// Displays distance field as antialiased black/white with the original black image pixels, and the outline drawn in green
 class EDT_DISPLAY_OVERLAY {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },

@@ -10,6 +10,8 @@ import three.TextureFilter;
 import three.WebGLRenderTarget;
 import three.Wrapping;
 
+// TODO finish this + write demo
+
 typedef Bin = Array<{ rect: Rect, sdf: WebGLRenderTarget }>; // TODO use something other than Rect type, so we can add info such as filenames/letters/keycodes/flipped flag etc?
 typedef BinMap = ObjectMap<SimplifiedMaxRectsPacker, Bin>;
 
