@@ -65,13 +65,18 @@ void testCandidate(in vec2 stepvec, inout vec4 bestseed)
 	vec3 texel = sampleTexture(tDiffuse, newvec).rgb;
 	vec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)
 	newseed.xy = remap(texel.rg);
-	if(newseed.x > -0.99999)
+	if(newseed.x > -0.99999) // If the new seed is not "indeterminate distance"
 	{
-		// If the new seed is not "indeterminate distance"
 		newseed.xy = newseed.xy + stepvec;
 		
+		// TODO: implement better equations for calculating the AA distance
+		// Try by getting the direction of the edge using the gradients of nearby edge pixels 
+		
+		float di = length(newseed.xy);
+		float df = texel.b - 0.5;
+		
 		// TODO: This AA assumes texw == texh. It does not allow for non-square textures.
-		newseed.z = length(newseed.xy) + (texel.b - 0.5) / texw;
+		newseed.z = di + (df / texw);
 		newseed.w = texel.b;
 		
 		if(newseed.z < bestseed.z)

@@ -21,6 +21,7 @@ HxOverrides.indexOf = function(a,obj,i) {
 	return -1;
 };
 var Main = function() {
+	this.keycode = 0;
 	this.shaderGUI = new dat.GUI({ autoPlace : true});
 	this.sceneGUI = new dat.GUI({ autoPlace : true});
 	this.signal_windowResized = new msignal_Signal0();
@@ -151,16 +152,22 @@ Main.prototype = {
 		window.addEventListener("keypress",function(event1) {
 			var keycode;
 			if(event1.keyCode == null) keycode = event1.keyCode; else keycode = event1.charCode;
-			var keyStr = String.fromCharCode(keycode);
-			if(HxOverrides.indexOf(_g.keyStrInput,keyStr,0) != -1) return;
-			if(_g.sdfMap.exists(keyStr)) return;
-			_g.loadCanvas(TextGenerator.generateText(keyStr),keyStr);
+			_g.loadCanvasForKeyCode(keycode);
 			event1.preventDefault();
 		},true);
 		this.setupStats(null);
 		this.setupGUI();
 		gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
+	}
+	,getNextKeyCode: function() {
+		return this.keycode++;
+	}
+	,loadCanvasForKeyCode: function(keycode) {
+		var keyStr = String.fromCharCode(keycode);
+		if(HxOverrides.indexOf(this.keyStrInput,keyStr,0) != -1) return;
+		if(this.sdfMap.exists(keyStr)) return;
+		this.loadCanvas(TextGenerator.generateText(keyStr),keyStr);
 	}
 	,loadTexture: function(url) {
 		var _g = this;
@@ -190,6 +197,8 @@ Main.prototype = {
 		dat_ShaderGUI.generate(this.shaderGUI,"GRAYSCALE",shaders_EDT_$DISPLAY_$GRAYSCALE.uniforms);
 		dat_ShaderGUI.generate(this.shaderGUI,"RGB",shaders_EDT_$DISPLAY_$RGB.uniforms);
 		dat_ShaderGUI.generate(this.shaderGUI,"PASSTHROUGH",shaders_Copy.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"SEED",shaders_EDT_$SEED.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"FLOOD",shaders_EDT_$FLOOD.uniforms);
 	}
 	,onDisplayShaderChanged: function(id) {
 		switch(id) {
@@ -371,15 +380,17 @@ Std.string = function(s) {
 var TextGenerator = function() { };
 TextGenerator.__name__ = true;
 TextGenerator.generateText = function(s,width,height) {
-	if(height == null) height = 128;
-	if(width == null) width = 128;
-	var canvas = window.document.createElement("canvas");
+	if(height == null) height = 512;
+	if(width == null) width = 512;
+	var canvas;
+	var _this = window.document;
+	canvas = _this.createElement("canvas");
 	canvas.width = width;
 	canvas.height = height;
 	canvas.style.background = "black";
 	var context = canvas.getContext("2d");
 	context.fillStyle = "#ffffff";
-	context.font = "120px Consolas";
+	context.font = "400px Verdana";
 	context.textBaseline = "middle";
 	context.textAlign = "center";
 	context.antialias = "subpixel";
@@ -387,8 +398,128 @@ TextGenerator.generateText = function(s,width,height) {
 	context.filter = "best";
 	context.imageSmoothingEnabled = true;
 	context.fillText(s,canvas.width / 2,canvas.height / 2);
+	canvas = TextGenerator.downScaleCanvas(canvas,0.25);
 	window.document.body.appendChild(canvas);
 	return canvas;
+};
+TextGenerator.downScaleCanvas = function(cv,scale) {
+	if(scale <= 0.0 || scale >= 1.0) throw new js__$Boot_HaxeError("Scale must be a positive number < 1");
+	var sqScale = scale * scale;
+	var sw = cv.width;
+	var sh = cv.height;
+	var tw = sw * scale | 0;
+	var th = sh * scale | 0;
+	var sx = 0;
+	var sy = 0;
+	var sIndex = 0;
+	var tx = 0;
+	var ty = 0;
+	var yIndex = 0;
+	var tIndex = 0;
+	var tX = 0;
+	var tY = 0;
+	var w = 0.0;
+	var nw = 0.0;
+	var wx = 0.0;
+	var nwx = 0.0;
+	var wy = 0.0;
+	var nwy = 0.0;
+	var crossX = false;
+	var crossY = false;
+	var sBuffer = cv.getContext("2d").getImageData(0,0,sw,sh).data;
+	var tBuffer = new Float32Array(3 * tw * th);
+	var sR = 0.0;
+	var sG = 0.0;
+	var sB = 0.0;
+	while(sy < sh) {
+		ty = sy * scale | 0;
+		tY = ty | 0;
+		yIndex = 3 * tY * tw | 0;
+		crossY = tY != (ty + scale | 0);
+		if(crossY) {
+			wy = tY + 1 - ty;
+			nwy = ty + scale - tY - 1;
+		}
+		sx = 0;
+		while(sx < sw) {
+			tx = sx * scale | 0;
+			tX = tx | 0;
+			tIndex = yIndex + tX * 3 | 0;
+			crossX = tX != Math.floor(tx + scale);
+			if(crossX) {
+				wx = tX + 1 - tx;
+				nwx = tx + scale - tX - 1 | 0;
+			}
+			sR = sBuffer[sIndex];
+			sG = sBuffer[sIndex + 1];
+			sB = sBuffer[sIndex + 2];
+			if(!crossX && !crossY) {
+				tBuffer[tIndex] += sR * sqScale;
+				tBuffer[tIndex + 1] += sG * sqScale;
+				tBuffer[tIndex + 2] += sB * sqScale;
+			} else if(crossX && !crossY) {
+				w = wx * scale;
+				tBuffer[tIndex] += sR * w;
+				tBuffer[tIndex + 1] += sG * w;
+				tBuffer[tIndex + 2] += sB * w;
+				nw = nwx * scale;
+				tBuffer[tIndex + 3] += sR * nw;
+				tBuffer[tIndex + 4] += sG * nw;
+				tBuffer[tIndex + 5] += sB * nw;
+			} else if(crossY && !crossX) {
+				w = wy * scale;
+				tBuffer[tIndex] += sR * w;
+				tBuffer[tIndex + 1] += sG * w;
+				tBuffer[tIndex + 2] += sB * w;
+				nw = nwy * scale;
+				tBuffer[tIndex + 3 * tw] += sR * nw;
+				tBuffer[tIndex + 3 * tw + 1] += sG * nw;
+				tBuffer[tIndex + 3 * tw + 2] += sB * nw;
+			} else {
+				w = wx * wy;
+				tBuffer[tIndex] += sR * w;
+				tBuffer[tIndex + 1] += sG * w;
+				tBuffer[tIndex + 2] += sB * w;
+				nw = nwx * wy;
+				tBuffer[tIndex + 3] += sR * nw;
+				tBuffer[tIndex + 4] += sG * nw;
+				tBuffer[tIndex + 5] += sB * nw;
+				nw = wx * nwy;
+				tBuffer[tIndex + 3 * tw] += sR * nw;
+				tBuffer[tIndex + 3 * tw + 1] += sG * nw;
+				tBuffer[tIndex + 3 * tw + 2] += sB * nw;
+				nw = nwx * nwy;
+				tBuffer[tIndex + 3 * tw + 3] += sR * nw;
+				tBuffer[tIndex + 3 * tw + 4] += sG * nw;
+				tBuffer[tIndex + 3 * tw + 5] += sB * nw;
+			}
+			sIndex += 4;
+			sx++;
+		}
+		sy++;
+	}
+	var result;
+	var _this = window.document;
+	result = _this.createElement("canvas");
+	result.width = tw;
+	result.height = th;
+	var resultContext = result.getContext("2d");
+	var resultImage = resultContext.getImageData(0,0,tw,th);
+	var tByteBuffer = resultImage.data;
+	var pxIndex = 0;
+	sIndex = 0;
+	tIndex = 0;
+	while(pxIndex < tw * th) {
+		tByteBuffer[tIndex] = Math.ceil(tBuffer[sIndex]);
+		tByteBuffer[tIndex + 1] = Math.ceil(tBuffer[sIndex + 1]);
+		tByteBuffer[tIndex + 2] = Math.ceil(tBuffer[sIndex + 2]);
+		tByteBuffer[tIndex + 3] = 255;
+		sIndex += 3;
+		tIndex += 4;
+		pxIndex++;
+	}
+	resultContext.putImageData(resultImage,0,0);
+	return result;
 };
 var dat_ShaderGUI = function() { };
 dat_ShaderGUI.__name__ = true;
@@ -965,7 +1096,7 @@ shaders_Copy.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv 
 shaders_Copy.fragmentShader = "varying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\n\r\nvoid main()\r\n{\r\n\tgl_FragColor = texture2D(tDiffuse, vUv);\r\n}";
 shaders_EDT_$FLOOD.uniforms = { tDiffuse : { type : "t", value : null}, texLevels : { type : "f", value : 0.0}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, step : { type : "f", value : 0.0}};
 shaders_EDT_$FLOOD.vertexShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform float step;\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\t// Saves a division in the fragment shader\r\n\tstepu = step / texw;\r\n\tstepv = step / texh;\r\n\t\r\n\tvUv = uv;\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_EDT_$FLOOD.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\n// Helper function to remap unsigned normalized floats [0.0..1.0]\r\n// coming from a texture stored in integer format internally to a\r\n// signed float vector pointing exactly to a pixel centre in texture\r\n// space. The range of valid vectors is\r\n// [-1.0+0.5/texsize, 1.0-0.5/texsize], with the special value\r\n// -1.0-0.5*texsize (represented as integer 0) meaning\r\n// \"distance vector still undetermined\".\r\n// The mapping is carefully designed to map both 8 bit and 16\r\n// bit integer texture data to distinct and exact floating point\r\n// texture coordinate offsets and vice versa.\r\n// 8 bit integer textures can be used to transform images up to\r\n// size 128x128 pixels, and 16 bit integer textures can be used to\r\n// transform images up to 32768x32768, i.e. beyond the largest\r\n// texture size available in current implementations of OpenGL.\r\n// Direct use of integers in the shader (by means of texture2DRect\r\n// and GL_RG8I and GL_RG16I texture formats) could be faster, but-1\r\n// this code is conveniently compatible even with version 1.2 of GLSL\r\n// (i.e. OpenGL 2.1), and the main shader is limited by texture access\r\n// and branching, not ALU capacity, so a few extra multiplications\r\n// for indexing and output storage are not that bad.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n     return floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvec2 remap_inv(vec2 floatvec)\r\n{\r\n     return (floatvec + 1.0) * 0.5 * texLevels / (texLevels - 1.0);\r\n}\r\n\r\n// TODO this isn't ideal, also will it work for most texture sizes?\r\nvec3 sampleTexture(sampler2D texture, vec2 vec)\r\n{\r\n\t// The algorithm depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.\r\n\t// These explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in UV cause a slowdown of about 25%.\r\n\tif(vec.x >= 1.0 || vec.y >= 1.0 || vec.x <= 0.0 || vec.y <= 0.0)\r\n\t{\r\n\t\tvec = clamp(vec, 0.0, 1.0);\r\n\t\treturn vec3(0.0, 0.0, 0.0);\r\n\t}\r\n\t\r\n\treturn texture2D(texture, vec).rgb;\r\n}\r\n\r\nvoid testCandidate(in vec2 stepvec, inout vec4 bestseed)\r\n{\r\n\tvec2 newvec = vUv + stepvec; // Absolute position of that candidate\r\n\tvec3 texel = sampleTexture(tDiffuse, newvec).rgb;\r\n\tvec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t\t// If the new seed is not \"indeterminate distance\"\r\n\t\tnewseed.xy = newseed.xy + stepvec;\r\n\t\t\r\n\t\t// TODO: This AA assumes texw == texh. It does not allow for non-square textures.\r\n\t\tnewseed.z = length(newseed.xy) + (texel.b - 0.5) / texw;\r\n\t\tnewseed.w = texel.b;\r\n\t\t\r\n\t\tif(newseed.z < bestseed.z)\r\n\t\t{\r\n\t\t\tbestseed = newseed;\r\n\t\t}\r\n\t}\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Searches for better distance vectors among 8 candidates\r\n\tvec3 texel = sampleTexture(tDiffuse, vUv).rgb;\r\n\t\r\n\t// Closest seed so far\r\n\tvec4 bestseed;\r\n\tbestseed.xy = remap(texel.rg);\r\n\tbestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset to distance\r\n\tbestseed.w = texel.b; // Save AA/grayscale value\r\n\t\r\n\ttestCandidate(vec2(-stepu, -stepv), bestseed);\r\n\ttestCandidate(vec2(-stepu, 0.0), bestseed);\r\n\ttestCandidate(vec2(-stepu, stepv), bestseed);\r\n\ttestCandidate(vec2(0.0, -stepv), bestseed);\r\n\ttestCandidate(vec2(0.0, stepv), bestseed);\r\n\ttestCandidate(vec2(stepu, -stepv), bestseed);\r\n\ttestCandidate(vec2(stepu, 0.0), bestseed);\r\n\ttestCandidate(vec2(stepu, stepv), bestseed);\r\n\t\r\n\tgl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);\r\n}";
+shaders_EDT_$FLOOD.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\n// Helper function to remap unsigned normalized floats [0.0..1.0]\r\n// coming from a texture stored in integer format internally to a\r\n// signed float vector pointing exactly to a pixel centre in texture\r\n// space. The range of valid vectors is\r\n// [-1.0+0.5/texsize, 1.0-0.5/texsize], with the special value\r\n// -1.0-0.5*texsize (represented as integer 0) meaning\r\n// \"distance vector still undetermined\".\r\n// The mapping is carefully designed to map both 8 bit and 16\r\n// bit integer texture data to distinct and exact floating point\r\n// texture coordinate offsets and vice versa.\r\n// 8 bit integer textures can be used to transform images up to\r\n// size 128x128 pixels, and 16 bit integer textures can be used to\r\n// transform images up to 32768x32768, i.e. beyond the largest\r\n// texture size available in current implementations of OpenGL.\r\n// Direct use of integers in the shader (by means of texture2DRect\r\n// and GL_RG8I and GL_RG16I texture formats) could be faster, but-1\r\n// this code is conveniently compatible even with version 1.2 of GLSL\r\n// (i.e. OpenGL 2.1), and the main shader is limited by texture access\r\n// and branching, not ALU capacity, so a few extra multiplications\r\n// for indexing and output storage are not that bad.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n     return floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvec2 remap_inv(vec2 floatvec)\r\n{\r\n     return (floatvec + 1.0) * 0.5 * texLevels / (texLevels - 1.0);\r\n}\r\n\r\n// TODO this isn't ideal, also will it work for most texture sizes?\r\nvec3 sampleTexture(sampler2D texture, vec2 vec)\r\n{\r\n\t// The algorithm depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.\r\n\t// These explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in UV cause a slowdown of about 25%.\r\n\tif(vec.x >= 1.0 || vec.y >= 1.0 || vec.x <= 0.0 || vec.y <= 0.0)\r\n\t{\r\n\t\tvec = clamp(vec, 0.0, 1.0);\r\n\t\treturn vec3(0.0, 0.0, 0.0);\r\n\t}\r\n\t\r\n\treturn texture2D(texture, vec).rgb;\r\n}\r\n\r\nvoid testCandidate(in vec2 stepvec, inout vec4 bestseed)\r\n{\r\n\tvec2 newvec = vUv + stepvec; // Absolute position of that candidate\r\n\tvec3 texel = sampleTexture(tDiffuse, newvec).rgb;\r\n\tvec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999) // If the new seed is not \"indeterminate distance\"\r\n\t{\r\n\t\tnewseed.xy = newseed.xy + stepvec;\r\n\t\t\r\n\t\t// TODO: implement better equations for calculating the AA distance\r\n\t\t// Try by getting the direction of the edge using the gradients of nearby edge pixels \r\n\t\t\r\n\t\tfloat di = length(newseed.xy);\r\n\t\tfloat df = texel.b - 0.5;\r\n\t\t\r\n\t\t// TODO: This AA assumes texw == texh. It does not allow for non-square textures.\r\n\t\tnewseed.z = di + (df / texw);\r\n\t\tnewseed.w = texel.b;\r\n\t\t\r\n\t\tif(newseed.z < bestseed.z)\r\n\t\t{\r\n\t\t\tbestseed = newseed;\r\n\t\t}\r\n\t}\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Searches for better distance vectors among 8 candidates\r\n\tvec3 texel = sampleTexture(tDiffuse, vUv).rgb;\r\n\t\r\n\t// Closest seed so far\r\n\tvec4 bestseed;\r\n\tbestseed.xy = remap(texel.rg);\r\n\tbestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset to distance\r\n\tbestseed.w = texel.b; // Save AA/grayscale value\r\n\t\r\n\ttestCandidate(vec2(-stepu, -stepv), bestseed);\r\n\ttestCandidate(vec2(-stepu, 0.0), bestseed);\r\n\ttestCandidate(vec2(-stepu, stepv), bestseed);\r\n\ttestCandidate(vec2(0.0, -stepv), bestseed);\r\n\ttestCandidate(vec2(0.0, stepv), bestseed);\r\n\ttestCandidate(vec2(stepu, -stepv), bestseed);\r\n\ttestCandidate(vec2(stepu, 0.0), bestseed);\r\n\ttestCandidate(vec2(stepu, stepv), bestseed);\r\n\t\r\n\tgl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);\r\n}";
 shaders_EDT_$SEED.uniforms = { tDiffuse : { type : "t", value : null}, texLevels : { type : "f", value : 0.0}};
 shaders_EDT_$SEED.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
 shaders_EDT_$SEED.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This shader initializes the distance field in preparation for the flood filling.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texLevels;\r\n\r\nvoid main()\r\n{\r\n\tfloat texel = texture2D(tDiffuse, vUv).r;\r\n\t\r\n\t// Represents zero\r\n\tfloat myzero = 0.5 * texLevels / (texLevels - 1.0);\r\n\t\r\n\t// Represents infinity/not-yet-calculated\r\n\tfloat myinfinity = 0.0;\r\n\t\r\n\t// Sub-pixel AA distance\r\n\tfloat aadist = texel;\r\n\t\r\n\t// Pixels > 0.5 are objects, others are background\r\n\tgl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);\r\n}";

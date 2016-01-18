@@ -13,6 +13,8 @@ import shaders.EDT.EDT_DISPLAY_AA;
 import shaders.EDT.EDT_DISPLAY_GRAYSCALE;
 import shaders.EDT.EDT_DISPLAY_OVERLAY;
 import shaders.EDT.EDT_DISPLAY_RGB;
+import shaders.EDT.EDT_FLOOD;
+import shaders.EDT.EDT_SEED;
 import stats.Stats;
 import three.Color;
 import three.ImageUtils;
@@ -187,7 +189,7 @@ class Main {
 			grayscaleMaterial.uniforms.distanceFactor.value = 30.0;
 			
 			grayscaleMaterials.push( { mesh: mesh, material: grayscaleMaterial, sdf: target } );
-		
+			
 			var rgbMaterial = new ShaderMaterial({
 				vertexShader: EDT_DISPLAY_RGB.vertexShader,
 				fragmentShader: EDT_DISPLAY_RGB.fragmentShader,
@@ -247,19 +249,9 @@ class Main {
 		}, true);
 		
 		Browser.window.addEventListener("keypress", function(event) {
-			var keycode = event.keyCode == null ? event.keyCode : event.charCode;			
-			var keyStr = String.fromCharCode(keycode);
+			var keycode = event.keyCode == null ? event.keyCode : event.charCode;
 			
-			// Don't accept the same string input more than once (as we'll have already generated that text before)
-			if (keyStrInput.indexOf(keyStr) != -1) {
-				return;
-			}
-			
-			if (sdfMap.exists(keyStr)) {
-				return;
-			}
-			
-			loadCanvas(TextGenerator.generateText(keyStr), keyStr);
+			loadCanvasForKeyCode(keycode);
 			
 			event.preventDefault();
 		}, true);
@@ -270,10 +262,34 @@ class Main {
 		#end
 		
 		setupGUI();
-			
+		
+		// Load a new unicode letter repeatedly
+		//var timer = new Timer(20);
+		//timer.run = function() { loadCanvasForKeyCode(getNextKeyCode()); };
+		
 		// Present game and start animation loop
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
+	}
+	
+	private var keycode:Int = 0;
+	private function getNextKeyCode():Int {
+		return keycode++;
+	}
+	
+	private function loadCanvasForKeyCode(keycode:Int):Void {
+		var keyStr = String.fromCharCode(keycode);
+		
+		// Don't accept the same string input more than once (as we'll have already generated that text before)
+		if (keyStrInput.indexOf(keyStr) != -1) {
+			return;
+		}
+		
+		if (sdfMap.exists(keyStr)) {
+			return;
+		}
+		
+		loadCanvas(TextGenerator.generateText(keyStr), keyStr);		
 	}
 	
 	private inline function loadTexture(url:String):Void {
@@ -316,6 +332,9 @@ class Main {
 		ShaderGUI.generate(shaderGUI, "GRAYSCALE", EDT_DISPLAY_GRAYSCALE.uniforms);
 		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
 		ShaderGUI.generate(shaderGUI, "PASSTHROUGH", Copy.uniforms);
+		
+		ShaderGUI.generate(shaderGUI, "SEED", EDT_SEED.uniforms);
+		ShaderGUI.generate(shaderGUI, "FLOOD", EDT_FLOOD.uniforms);
 	}
 	
 	private function onDisplayShaderChanged(id:String):Void {		
