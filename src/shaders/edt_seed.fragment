@@ -1,6 +1,9 @@
 // Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).
-// Implementation by Stefan Gustavson 2010. This code is in the public domain.
 // This shader initializes the distance field in preparation for the flood filling.
+
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2010.
+// This code is in the public domain.
 
 varying vec2 vUv;
 

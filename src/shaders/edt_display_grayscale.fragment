@@ -1,8 +1,3 @@
-// Distance map contour texturing.
-// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.
-
-// Adapted for three.js demo by Sam Twidale.
-// Original implementation by Stefan Gustavson 2011.
 // This code is in the public domain.
 
 varying vec2 vUv;
@@ -14,14 +9,7 @@ uniform float texw;
 uniform float texh;
 uniform float texLevels;
 uniform float threshold;
-
-// Replacement for RSLs filterstep(), with fwidth() done right.
-// threshold is constant, value is smoothly varying
-float aastep(float threshold, float value)
-{
-	float afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));
-	return smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))
-}
+uniform float distanceFactor;
 
 // Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].
 // The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.
@@ -56,13 +44,8 @@ void main()
 	vec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);
 	
 	// Interpolate along u
-	float D = mix(D0_1.x, D0_1.y, uvlerp.x);
-	
-	float g = aastep(threshold, D);
-	
-	// Retrieve the B channel to get the original grayscale image
-	float c = texture2D(tDiffuse, vUv).b;
+	float D = mix(D0_1.x, D0_1.y, uvlerp.x) * distanceFactor;
 	
 	// Final fragment color
-	gl_FragColor = vec4(vec3(g, c, g), 1.0);
+	gl_FragColor = vec4(vec3(D), 1.0);
 }

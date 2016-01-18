@@ -21,8 +21,19 @@ HxOverrides.indexOf = function(a,obj,i) {
 	return -1;
 };
 var Main = function() {
-	this.signal_letterTyped = new msignal_Signal1();
+	this.shaderGUI = new dat.GUI({ autoPlace : true});
+	this.sceneGUI = new dat.GUI({ autoPlace : true});
 	this.signal_windowResized = new msignal_Signal0();
+	this.signal_letterTyped = new msignal_Signal1();
+	this.displayShaders = ["AA","OVERLAY","GRAYSCALE","RGB","PASSTHROUGH"];
+	this.displayShader = "AA";
+	this.passthroughMaterials = [];
+	this.overlayMaterials = [];
+	this.rgbMaterials = [];
+	this.grayscaleMaterials = [];
+	this.aaMaterials = [];
+	this.keyStrInput = [];
+	this.sdfMap = new haxe_ds_StringMap();
 	window.onload = $bind(this,this.onWindowLoaded);
 };
 Main.__name__ = true;
@@ -43,76 +54,94 @@ Main.prototype = {
 			unsupportedInfo.style.color = "#ffffff";
 			switch(glSupported) {
 			case 2:
-				unsupportedInfo.innerHTML = "Your browser does not support WebGL. Click <a href=\"" + "https://github.com/Tw1ddle/Box" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Your browser does not support WebGL. Click <a href=\"" + "https://github.com/Tw1ddle/WebGL-Distance-Fields" + "\" target=\"_blank\">here for project info</a> instead.";
 				break;
 			case 1:
-				unsupportedInfo.innerHTML = "Your browser supports WebGL, but the feature appears to be disabled. Click <a href=\"" + "https://github.com/Tw1ddle/Box" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Your browser supports WebGL, but the feature appears to be disabled. Click <a href=\"" + "https://github.com/Tw1ddle/WebGL-Distance-Fields" + "\" target=\"_blank\">here for project info</a> instead.";
 				break;
 			default:
-				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/Box" + "\" target=\"_blank\">here for project info</a> instead.";
+				unsupportedInfo.innerHTML = "Could not detect WebGL support. Click <a href=\"" + "https://github.com/Tw1ddle/WebGL-Distance-Fields" + "\" target=\"_blank\">here for project info</a> instead.";
 			}
 			gameDiv.appendChild(unsupportedInfo);
 			return;
 		}
-		this.gameAttachPoint = window.document.getElementById("game");
-		this.gameAttachPoint.appendChild(gameDiv);
 		this.renderer = new THREE.WebGLRenderer({ antialias : true});
-		this.renderer.context.getExtension("OES_standard_derivatives");
+		var extDerivatives = "OES_standard_derivatives";
+		var ext = this.renderer.context.getExtension(extDerivatives);
+		if(ext == null) {
+			var missingExtensionInfo = window.document.createElement("div");
+			missingExtensionInfo.style.position = "absolute";
+			missingExtensionInfo.style.top = "10px";
+			missingExtensionInfo.style.width = "100%";
+			missingExtensionInfo.style.textAlign = "center";
+			missingExtensionInfo.style.color = "#ffffff";
+			missingExtensionInfo.innerHTML = "Missing required WebGL extension: " + extDerivatives + " Click <a href=\"" + "https://github.com/Tw1ddle/WebGL-Distance-Fields" + "\" target=\"_blank\">here for project info</a> instead.";
+			gameDiv.appendChild(missingExtensionInfo);
+			return;
+		}
 		this.renderer.sortObjects = false;
 		this.renderer.autoClear = false;
-		this.renderer.setClearColor(new THREE.Color(16711680));
+		this.renderer.setClearColor(new THREE.Color(0));
 		this.renderer.setPixelRatio(window.devicePixelRatio);
-		var width = window.innerWidth * this.renderer.getPixelRatio();
-		var height = window.innerHeight * this.renderer.getPixelRatio();
-		this.worldScene = new THREE.Scene();
-		this.worldCamera = new THREE.PerspectiveCamera(75,width / height,20,70000);
-		this.worldCamera.position.z = 500;
-		this.aaPass = new THREE.ShaderPass({ vertexShader : shaders_BasicFXAA.vertexShader, fragmentShader : shaders_BasicFXAA.fragmentShader, uniforms : shaders_BasicFXAA.uniforms});
-		var done = false;
-		var texture = THREE.ImageUtils.loadTexture("assets/test2.png",null,function(t) {
-			done = true;
+		this.gameAttachPoint = window.document.getElementById("game");
+		this.gameAttachPoint.appendChild(gameDiv);
+		var width = 400 * this.renderer.getPixelRatio();
+		var height = 400 * this.renderer.getPixelRatio();
+		this.scene = new THREE.Scene();
+		this.camera = new THREE.PerspectiveCamera(75,width / height,1,10000);
+		this.camera.position.z = 80;
+		this.signal_windowResized.add(function() {
+			var width1 = 400 * _g.renderer.getPixelRatio();
+			var height1 = 400 * _g.renderer.getPixelRatio();
+			_g.renderer.setSize(width1,height1);
+			_g.camera.aspect = width1 / height1;
+			_g.camera.updateProjectionMatrix();
 		});
-		while(!done) {
-		}
-		texture.needsUpdate = true;
-		var material = new THREE.MeshBasicMaterial({ map : texture});
-		var plane = new THREE.Mesh(new THREE.PlaneGeometry(128,128),material);
-		this.worldScene.add(plane);
-		this.edtPass = new THREE.ShaderPass({ vertexShader : shaders_EDT.vertexShader, fragmentShader : shaders_EDT.fragmentShader, uniforms : shaders_EDT.uniforms});
-		this.sdffDisplayPass = new THREE.ShaderPass({ vertexShader : shaders_SDFF_$AA.vertexShader, fragmentShader : shaders_SDFF_$AA.fragmentShader, uniforms : shaders_SDFF_$AA.uniforms});
-		this.sdffDisplayPass.material.derivatives = true;
-		this.sdffDisplayPass.renderToScreen = true;
-		this.sdffDisplayPass.uniforms.texture.value = texture;
-		this.sdffDisplayPass.uniforms.texw.value = texture.image.width;
-		this.sdffDisplayPass.uniforms.texh.value = texture.image.height;
-		this.composer = new THREE.EffectComposer(this.renderer);
-		this.composer.addPass(this.sdffDisplayPass);
-		this.edtComposer = new THREE.EffectComposer(this.renderer);
-		this.edtComposer.addPass(this.edtPass);
-		var renderTargetNearestFloatParams = { minFilter : THREE.NearestFilter, magFilter : THREE.NearestFilter, wrapS : THREE.ClampToEdgeWrapping, wrapT : THREE.ClampToEdgeWrapping, format : THREE.RGBAFormat, stencilBuffer : false, depthBuffer : false, type : THREE.FloatType};
-		var stepSize;
-		if(texture.image.width > texture.image.height) stepSize = texture.image.width / 2 | 0; else stepSize = texture.image.height / 2 | 0;
-		var ping = new THREE.WebGLRenderTarget(texture.image.width,texture.image.height,renderTargetNearestFloatParams);
-		var pong = new THREE.WebGLRenderTarget(texture.image.width,texture.image.height,renderTargetNearestFloatParams);
-		var last = null;
-		var stepIndex = 0;
-		this.renderer.render(this.worldScene,this.worldCamera,ping);
-		while(stepSize > 0) {
-			this.edtPass.uniforms.texture.value = texture;
-			this.edtPass.uniforms.texw.value = texture.image.width;
-			this.edtPass.uniforms.texh.value = texture.image.height;
-			this.edtPass.uniforms.step.value = stepSize;
-			this.edtPass.uniforms.texlevels.value = 65536;
-			this.edtComposer.renderTarget1 = ping;
-			this.edtComposer.renderTarget2 = pong;
-			this.edtComposer.render();
-			last = pong;
-			var tmp = ping;
-			pong = ping;
-			ping = tmp;
-			stepSize = stepSize / 2 | 0;
-			stepIndex++;
-		}
+		this.signal_windowResized.dispatch();
+		this.sdfMaker = new SDFMaker(this.renderer);
+		this.sdfMaker.signal_textureLoaded.add(function(id,target) {
+			if(_g.sdfMap.exists(id)) return;
+			var geometry = new THREE.PlaneGeometry(target.width,target.height);
+			var mesh = new THREE.Mesh(geometry);
+			var aaMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$AA.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$AA.fragmentShader, uniforms : shaders_EDT_$DISPLAY_$AA.uniforms});
+			aaMaterial.derivatives = true;
+			aaMaterial.uniforms.tDiffuse.value = target;
+			aaMaterial.uniforms.texw.value = target.width;
+			aaMaterial.uniforms.texh.value = target.height;
+			aaMaterial.uniforms.texLevels.value = _g.sdfMaker.texLevels;
+			aaMaterial.uniforms.threshold.value = 0.0;
+			_g.aaMaterials.push({ mesh : mesh, material : aaMaterial, sdf : target});
+			var grayscaleMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$GRAYSCALE.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$GRAYSCALE.fragmentShader, uniforms : shaders_EDT_$DISPLAY_$GRAYSCALE.uniforms});
+			grayscaleMaterial.derivatives = true;
+			grayscaleMaterial.uniforms.tDiffuse.value = target;
+			grayscaleMaterial.uniforms.texw.value = target.width;
+			grayscaleMaterial.uniforms.texh.value = target.height;
+			grayscaleMaterial.uniforms.texLevels.value = _g.sdfMaker.texLevels;
+			grayscaleMaterial.uniforms.distanceFactor.value = 30.0;
+			_g.grayscaleMaterials.push({ mesh : mesh, material : grayscaleMaterial, sdf : target});
+			var rgbMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$RGB.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$RGB.fragmentShader, uniforms : shaders_EDT_$DISPLAY_$RGB.uniforms});
+			rgbMaterial.uniforms.tDiffuse.value = target;
+			rgbMaterial.uniforms.texw.value = target.width;
+			rgbMaterial.uniforms.texh.value = target.height;
+			rgbMaterial.uniforms.texLevels.value = _g.sdfMaker.texLevels;
+			_g.rgbMaterials.push({ mesh : mesh, material : rgbMaterial, sdf : target});
+			var overlayMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$DISPLAY_$OVERLAY.vertexShader, fragmentShader : shaders_EDT_$DISPLAY_$OVERLAY.fragmentShader, uniforms : shaders_EDT_$DISPLAY_$OVERLAY.uniforms});
+			overlayMaterial.derivatives = true;
+			overlayMaterial.uniforms.tDiffuse.value = target;
+			overlayMaterial.uniforms.texw.value = target.width;
+			overlayMaterial.uniforms.texh.value = target.height;
+			overlayMaterial.uniforms.texLevels.value = _g.sdfMaker.texLevels;
+			overlayMaterial.uniforms.threshold.value = 0.0;
+			_g.overlayMaterials.push({ mesh : mesh, material : overlayMaterial, sdf : target});
+			var copyMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_Copy.vertexShader, fragmentShader : shaders_Copy.fragmentShader, uniforms : shaders_Copy.uniforms});
+			copyMaterial.uniforms.tDiffuse.value = target;
+			_g.passthroughMaterials.push({ mesh : mesh, material : copyMaterial, sdf : target});
+			mesh.material = aaMaterial;
+			_g.scene.add(mesh);
+			mesh.position.set(0,0,0);
+			_g.sdfMap.set(id,target);
+		});
+		this.loadTexture("assets/test2.png");
 		window.addEventListener("resize",function() {
 			_g.signal_windowResized.dispatch();
 		},true);
@@ -120,44 +149,93 @@ Main.prototype = {
 			event.preventDefault();
 		},true);
 		window.addEventListener("keypress",function(event1) {
-			var keycode = event1.keycode;
+			var keycode;
+			if(event1.keyCode == null) keycode = event1.keyCode; else keycode = event1.charCode;
+			var keyStr = String.fromCharCode(keycode);
+			if(HxOverrides.indexOf(_g.keyStrInput,keyStr,0) != -1) return;
+			if(_g.sdfMap.exists(keyStr)) return;
+			_g.loadCanvas(TextGenerator.generateText(keyStr),keyStr);
 			event1.preventDefault();
 		},true);
 		this.setupGUI();
-		this.signal_windowResized.add(function() {
-			_g.worldCamera.aspect = window.innerWidth / window.innerHeight;
-			_g.worldCamera.updateProjectionMatrix();
-			_g.renderer.setSize(window.innerWidth,window.innerHeight);
-		});
-		this.signal_windowResized.add(function() {
-			var pixelRatio = _g.renderer.getPixelRatio();
-			var width1 = window.innerWidth * pixelRatio;
-			var height1 = window.innerHeight * pixelRatio;
-			_g.aaPass.uniforms.resolution.value.set(width1,height1);
-			_g.composer.setSize(width1,height1);
-		});
-		this.signal_windowResized.dispatch();
 		gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
+	}
+	,loadTexture: function(url) {
+		var _g = this;
+		var texture1 = THREE.ImageUtils.loadTexture(url,THREE.UVMapping,function(texture) {
+			_g.sdfMaker.transformTexture(texture,"",false);
+		});
+	}
+	,loadCanvas: function(element,id) {
+		var texture = new THREE.Texture(element,THREE.UVMapping);
+		texture.needsUpdate = true;
+		this.sdfMaker.transformTexture(texture,id,true);
 	}
 	,animate: function(time) {
 		Main.dt = (time - Main.lastAnimationTime) * 0.001;
 		Main.lastAnimationTime = time;
-		this.composer.render();
+		this.renderer.render(this.scene,this.camera);
 		window.requestAnimationFrame($bind(this,this.animate));
 	}
 	,setupGUI: function() {
-		var actual = this.sceneGUI;
-		var expected = null;
-		if(actual != expected) throw new js__$Boot_HaxeError("FAIL: values are not equal (expected: " + Std.string(expected) + ", actual: " + Std.string(actual) + ")");
-		this.sceneGUI = new dat.GUI({ autoPlace : true});
-		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.worldCamera,"World Camera");
-		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.worldScene,"Scene");
-		var actual1 = this.shaderGUI;
-		var expected1 = null;
-		if(actual1 != expected1) throw new js__$Boot_HaxeError("FAIL: values are not equal (expected: " + Std.string(expected1) + ", actual: " + Std.string(actual1) + ")");
-		this.shaderGUI = new dat.GUI({ autoPlace : true});
-		dat_ShaderGUI.generate(this.shaderGUI,"Basic FXAA",this.aaPass.uniforms);
+		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
+		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
+		this.shaderGUI.add(this,"displayShader",this.displayShaders).listen().onChange($bind(this,this.onDisplayShaderChanged)).name("Display Shader");
+		dat_ShaderGUI.generate(this.shaderGUI,"AA",shaders_EDT_$DISPLAY_$AA.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"OVERLAY",shaders_EDT_$DISPLAY_$OVERLAY.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"GRAYSCALE",shaders_EDT_$DISPLAY_$GRAYSCALE.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"RGB",shaders_EDT_$DISPLAY_$RGB.uniforms);
+		dat_ShaderGUI.generate(this.shaderGUI,"PASSTHROUGH",shaders_Copy.uniforms);
+	}
+	,onDisplayShaderChanged: function(id) {
+		switch(id) {
+		case "AA":
+			var _g = 0;
+			var _g1 = this.aaMaterials;
+			while(_g < _g1.length) {
+				var o = _g1[_g];
+				++_g;
+				o.mesh.material = o.material;
+			}
+			break;
+		case "RGB":
+			var _g2 = 0;
+			var _g11 = this.rgbMaterials;
+			while(_g2 < _g11.length) {
+				var o1 = _g11[_g2];
+				++_g2;
+				o1.mesh.material = o1.material;
+			}
+			break;
+		case "GRAYSCALE":
+			var _g3 = 0;
+			var _g12 = this.grayscaleMaterials;
+			while(_g3 < _g12.length) {
+				var o2 = _g12[_g3];
+				++_g3;
+				o2.mesh.material = o2.material;
+			}
+			break;
+		case "OVERLAY":
+			var _g4 = 0;
+			var _g13 = this.overlayMaterials;
+			while(_g4 < _g13.length) {
+				var o3 = _g13[_g4];
+				++_g4;
+				o3.mesh.material = o3.material;
+			}
+			break;
+		case "PASSTHROUGH":
+			var _g5 = 0;
+			var _g14 = this.passthroughMaterials;
+			while(_g5 < _g14.length) {
+				var o4 = _g14[_g5];
+				++_g5;
+				o4.mesh.material = o4.material;
+			}
+			break;
+		}
 	}
 	,__class__: Main
 };
@@ -194,10 +272,106 @@ Reflect.compareMethods = function(f1,f2) {
 	if(!Reflect.isFunction(f1) || !Reflect.isFunction(f2)) return false;
 	return f1.scope == f2.scope && f1.method == f2.method && f1.method != null;
 };
+var SDFMaker = function(renderer) {
+	this.signal_textureLoaded = new msignal_Signal2();
+	this.texLevels = 256.0;
+	this.renderer = renderer;
+	this.scene = new THREE.Scene();
+	this.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(1,1)));
+	this.camera = new THREE.OrthographicCamera(-0.5,0.5,0.5,-0.5,-1,1);
+	this.camera.updateProjectionMatrix();
+	this.blurMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_GaussianBlur.vertexShader, fragmentShader : shaders_GaussianBlur.fragmentShader, uniforms : shaders_GaussianBlur.uniforms});
+	this.seedMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$SEED.vertexShader, fragmentShader : shaders_EDT_$SEED.fragmentShader, uniforms : shaders_EDT_$SEED.uniforms, transparent : true});
+	this.floodMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_EDT_$FLOOD.vertexShader, fragmentShader : shaders_EDT_$FLOOD.fragmentShader, uniforms : shaders_EDT_$FLOOD.uniforms});
+	this.copyMaterial = new THREE.ShaderMaterial({ vertexShader : shaders_Copy.vertexShader, fragmentShader : shaders_Copy.fragmentShader, uniforms : shaders_Copy.uniforms});
+	this.renderTargetParams = { minFilter : THREE.NearestFilter, magFilter : THREE.NearestFilter, wrapS : THREE.ClampToEdgeWrapping, wrapT : THREE.ClampToEdgeWrapping, format : THREE.RGBAFormat, stencilBuffer : false, depthBuffer : false, type : THREE.UnsignedByteType};
+};
+SDFMaker.__name__ = true;
+SDFMaker.prototype = {
+	transformTexture: function(texture,id,blurInput) {
+		if(blurInput == null) blurInput = true;
+		var width = texture.image.width;
+		var height = texture.image.height;
+		this.ping = new THREE.WebGLRenderTarget(width,height,this.renderTargetParams);
+		this.pong = new THREE.WebGLRenderTarget(width,height,this.renderTargetParams);
+		if(blurInput) {
+			this.scene.overrideMaterial = this.blurMaterial;
+			this.blurMaterial.uniforms.resolution.value.set(width,height);
+			this.blurMaterial.uniforms.tDiffuse.value = texture;
+			this.blurMaterial.uniforms.direction.value.set(1,0);
+			texture.minFilter = THREE.LinearFilter;
+			texture.magFilter = THREE.LinearFilter;
+			texture.wrapS = THREE.RepeatWrapping;
+			texture.wrapT = THREE.RepeatWrapping;
+			this.renderer.render(this.scene,this.camera,this.ping,true);
+			texture.wrapS = THREE.ClampToEdgeWrapping;
+			texture.wrapT = THREE.ClampToEdgeWrapping;
+			texture.minFilter = THREE.NearestFilter;
+			texture.magFilter = THREE.NearestFilter;
+			this.blurMaterial.uniforms.tDiffuse.value = this.ping;
+			this.blurMaterial.uniforms.direction.value.set(0,1);
+			this.ping.minFilter = THREE.LinearFilter;
+			this.ping.magFilter = THREE.LinearFilter;
+			this.ping.wrapS = THREE.RepeatWrapping;
+			this.ping.wrapT = THREE.RepeatWrapping;
+			this.renderer.render(this.scene,this.camera,this.pong,true);
+			this.ping.wrapS = THREE.ClampToEdgeWrapping;
+			this.ping.wrapT = THREE.ClampToEdgeWrapping;
+			this.ping.minFilter = THREE.NearestFilter;
+			this.ping.magFilter = THREE.NearestFilter;
+		}
+		this.scene.overrideMaterial = this.seedMaterial;
+		if(blurInput) this.seedMaterial.uniforms.tDiffuse.value = this.pong; else this.seedMaterial.uniforms.tDiffuse.value = texture;
+		this.seedMaterial.uniforms.texLevels.value = this.texLevels;
+		this.renderer.render(this.scene,this.camera,this.ping,true);
+		this.scene.overrideMaterial = this.floodMaterial;
+		this.floodMaterial.uniforms.texLevels.value = this.texLevels;
+		this.floodMaterial.uniforms.texw.value = width;
+		this.floodMaterial.uniforms.texh.value = height;
+		var stepSize;
+		if(width > height) stepSize = width / 2 | 0; else stepSize = height / 2 | 0;
+		var last = this.ping;
+		while(stepSize > 0) {
+			this.floodMaterial.uniforms.tDiffuse.value = last;
+			this.floodMaterial.uniforms.step.value = stepSize;
+			if(last == this.ping) last = this.pong; else last = this.ping;
+			this.renderer.render(this.scene,this.camera,last,true);
+			stepSize = stepSize / 2 | 0;
+		}
+		this.scene.overrideMaterial = null;
+		if(last != this.ping) this.ping.dispose();
+		if(last != this.pong) this.pong.dispose();
+		this.signal_textureLoaded.dispatch(id,last);
+		return last;
+	}
+	,__class__: SDFMaker
+};
 var Std = function() { };
 Std.__name__ = true;
 Std.string = function(s) {
 	return js_Boot.__string_rec(s,"");
+};
+var TextGenerator = function() { };
+TextGenerator.__name__ = true;
+TextGenerator.generateText = function(s,width,height) {
+	if(height == null) height = 128;
+	if(width == null) width = 128;
+	var canvas = window.document.createElement("canvas");
+	canvas.width = width;
+	canvas.height = height;
+	canvas.style.background = "black";
+	var context = canvas.getContext("2d");
+	context.fillStyle = "#ffffff";
+	context.font = "120px Consolas";
+	context.textBaseline = "middle";
+	context.textAlign = "center";
+	context.antialias = "subpixel";
+	context.patternQuality = "best";
+	context.filter = "best";
+	context.imageSmoothingEnabled = true;
+	context.fillText(s,canvas.width / 2,canvas.height / 2);
+	window.document.body.appendChild(canvas);
+	return canvas;
 };
 var dat_ShaderGUI = function() { };
 dat_ShaderGUI.__name__ = true;
@@ -214,10 +388,7 @@ dat_ShaderGUI.generate = function(gui,folderName,uniforms,exclude) {
 		var value = v.value;
 		switch(type) {
 		case "f":
-			folder.add(v,"value").listen().name(key);
-			break;
-		case "i":
-			folder.add(v,"value").listen().name(key);
+			if(Object.prototype.hasOwnProperty.call(v,"min") && Object.prototype.hasOwnProperty.call(v,"max")) folder.add(v,"value").listen().min(v.min).max(v.max).name(key); else folder.add(v,"value").listen().name(key);
 			break;
 		case "v2":
 			var f = folder.addFolder(key);
@@ -263,6 +434,31 @@ dat_ThreeObjectGUI.addItem = function(gui,object,tag) {
 		folder.add(light,"intensity",0,3,0.01).listen();
 	}
 	return folder;
+};
+var haxe_IMap = function() { };
+haxe_IMap.__name__ = true;
+var haxe_ds_StringMap = function() {
+	this.h = { };
+};
+haxe_ds_StringMap.__name__ = true;
+haxe_ds_StringMap.__interfaces__ = [haxe_IMap];
+haxe_ds_StringMap.prototype = {
+	set: function(key,value) {
+		if(__map_reserved[key] != null) this.setReserved(key,value); else this.h[key] = value;
+	}
+	,exists: function(key) {
+		if(__map_reserved[key] != null) return this.existsReserved(key);
+		return this.h.hasOwnProperty(key);
+	}
+	,setReserved: function(key,value) {
+		if(this.rh == null) this.rh = { };
+		this.rh["$" + key] = value;
+	}
+	,existsReserved: function(key) {
+		if(this.rh == null) return false;
+		return this.rh.hasOwnProperty("$" + key);
+	}
+	,__class__: haxe_ds_StringMap
 };
 var js__$Boot_HaxeError = function(val) {
 	Error.call(this);
@@ -694,14 +890,24 @@ msignal_SlotList.prototype = {
 	,__class__: msignal_SlotList
 	,__properties__: {get_length:"get_length"}
 };
-var shaders_BasicFXAA = function() { };
-shaders_BasicFXAA.__name__ = true;
-var shaders_EDT = function() { };
-shaders_EDT.__name__ = true;
-var shaders_SDFF_$RGB = function() { };
-shaders_SDFF_$RGB.__name__ = true;
-var shaders_SDFF_$AA = function() { };
-shaders_SDFF_$AA.__name__ = true;
+var shaders_Copy = function() { };
+shaders_Copy.__name__ = true;
+var shaders_EDT_$FLOOD = function() { };
+shaders_EDT_$FLOOD.__name__ = true;
+var shaders_EDT_$SEED = function() { };
+shaders_EDT_$SEED.__name__ = true;
+var shaders_EDT_$DISPLAY_$AA = function() { };
+shaders_EDT_$DISPLAY_$AA.__name__ = true;
+var shaders_EDT_$DISPLAY_$OVERLAY = function() { };
+shaders_EDT_$DISPLAY_$OVERLAY.__name__ = true;
+var shaders_EDT_$DISPLAY_$RGB = function() { };
+shaders_EDT_$DISPLAY_$RGB.__name__ = true;
+var shaders_EDT_$DISPLAY_$GRAYSCALE = function() { };
+shaders_EDT_$DISPLAY_$GRAYSCALE.__name__ = true;
+var shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD = function() { };
+shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.__name__ = true;
+var shaders_GaussianBlur = function() { };
+shaders_GaussianBlur.__name__ = true;
 var util_FileReader = function() { };
 util_FileReader.__name__ = true;
 var $_, $fid = 0;
@@ -720,8 +926,9 @@ var Bool = Boolean;
 Bool.__ename__ = ["Bool"];
 var Class = { __name__ : ["Class"]};
 var Enum = { };
+var __map_reserved = {}
 msignal_SlotList.NIL = new msignal_SlotList(null,null);
-Main.REPO_URL = "https://github.com/Tw1ddle/Box";
+Main.REPO_URL = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
 Main.WEBSITE_URL = "http://samcodes.co.uk/";
 Main.TWITTER_URL = "https://twitter.com/Sam_Twidale";
 Main.HAXE_URL = "http://haxe.org/";
@@ -729,17 +936,32 @@ Main.lastAnimationTime = 0.0;
 Main.dt = 0.0;
 dat_ThreeObjectGUI.guiItemCount = 0;
 js_Boot.__toStr = {}.toString;
-shaders_BasicFXAA.uniforms = { tDiffuse : { type : "t", value : null}, resolution : { type : "v2", value : new THREE.Vector2(1024,1024)}};
-shaders_BasicFXAA.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_BasicFXAA.fragmentShader = "// Fast approximate anti-aliasing shader\r\n// Based on the three.js implementation: https://github.com/mrdoob/three.js/blob/master/examples/js/shaders/FXAAShader.js\r\n// Ported to three.js by alteredq: http://alteredqualia.com/ and davidedc: http://www.sketchpatch.net/\r\n// Ported to WebGL by @supereggbert: http://www.geeks3d.com/20110405/fxaa-fast-approximate-anti-aliasing-demo-glsl-opengl-test-radeon-geforce/\r\n// Originally implemented as NVIDIA FXAA by Timothy Lottes: http://timothylottes.blogspot.com/2011/06/fxaa3-source-released.html\r\n// Paper: http://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf\r\n\r\n#define FXAA_REDUCE_MIN (1.0/128.0)\r\n#define FXAA_REDUCE_MUL (1.0/8.0)\r\n#define FXAA_SPAN_MAX 8.0\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\n\r\nvoid main()\r\n{\r\n\tvec2 rres = vec2(1.0) / resolution;\r\n\t\r\n\t// Texture lookups to find RGB values in area of current fragment\r\n\tvec3 rgbNW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbNE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, -1.0)) * rres).xyz;\r\n\tvec3 rgbSW = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(-1.0, 1.0)) * rres).xyz;\r\n\tvec3 rgbSE = texture2D(tDiffuse, (gl_FragCoord.xy + vec2(1.0, 1.0)) * rres).xyz;\r\n\tvec4 rgbaM = texture2D(tDiffuse, gl_FragCoord.xy  * rres);\r\n\tvec3 rgbM = rgbaM.xyz;\r\n\tfloat opacity = rgbaM.w;\r\n\t\r\n\t// Luminance estimates for colors around current fragment\r\n\tvec3 luma = vec3(0.299, 0.587, 0.114);\r\n\tfloat lumaNW = dot(rgbNW, luma);\r\n\tfloat lumaNE = dot(rgbNE, luma);\r\n\tfloat lumaSW = dot(rgbSW, luma);\r\n\tfloat lumaSE = dot(rgbSE, luma);\r\n\tfloat lumaM  = dot(rgbM, luma);\r\n\tfloat lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));\r\n\tfloat lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));\r\n\r\n\t// \r\n\tvec2 dir;\r\n\tdir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\r\n\tdir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\r\n\r\n\tfloat dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);\r\n\r\n\tfloat rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);\r\n\tdir = min(vec2(FXAA_SPAN_MAX, FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX), dir * rcpDirMin)) * rres;\r\n\r\n\tvec3 rgbA = 0.5 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (1.0 / 3.0 - 0.5 )).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * (2.0 / 3.0 - 0.5)).xyz);\r\n\tvec3 rgbB = rgbA * 0.5 + 0.25 * (texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * -0.5).xyz + texture2D(tDiffuse, gl_FragCoord.xy * rres + dir * 0.5).xyz);\r\n\r\n\tfloat lumaB = dot(rgbB, luma);\r\n\t\r\n\tif ((lumaB < lumaMin) || (lumaB > lumaMax))\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbA, opacity);\r\n\t}\r\n\telse\r\n\t{\r\n\t\tgl_FragColor = vec4(rgbB, opacity);\r\n\t}\r\n}";
-shaders_EDT.uniforms = { 'texture' : { type : "t", value : null}, 'texw' : { type : "f", value : 0.0}, 'texh' : { type : "f", value : 0.0}, 'step' : { type : "f", value : 0.0}, 'texlevels' : { type : "f", value : 0.0}};
-shaders_EDT.vertexShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// Implementation by Stefan Gustavson 2010. Has added support for anti-aliased edges. This code is in the public domain.\r\n\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform float step;\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\t// Saves a division in the fragment shader\r\n\tstepu = step / texw;\r\n\tstepv = step / texh;\r\n\t\r\n\tvUv = uv;\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_EDT.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// Implementation by Stefan Gustavson 2010. Has added support for anti-aliased edges. This code is in the public domain.\r\n\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform sampler2D texture;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texlevels;\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n     return floatdata * (texlevels - 1.0) / texlevels * 2.0 - 1.0;\r\n}\r\n\r\nvec2 remap_inv(vec2 floatvec)\r\n{\r\n     return (floatvec + 1.0)* 0.5 * texlevels / (texlevels - 1.0);\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Search for better distance vectors among 8 candidates\r\n\tvec2 stepvec;  // Relative offset to candidate being tested\r\n\tvec2 newvec;   // Absolute position of that candidate\r\n\tvec4 newseed;  // Closest point from that candidate (.xy),\r\n\t\t\t\t // its AA distance (.z) and its grayscale value (.w)\r\n\tvec4 bestseed; // Closest seed so far\r\n\tvec3 texel;\r\n\ttexel = texture2D(texture, vUv).rgb;\r\n\tbestseed.xy = remap(texel.rg);\r\n\t\r\n\t// TODO: This AA assumes texw=texh. It does not allow for non-square textures.\r\n\tbestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset\r\n\tbestseed.w = texel.b; // Save AA edge offset\r\n\r\n\t// This code depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.\r\n\t// The commented-out lines handle clamping to the edge explicitly to avoid propagating incorrect vectors when looking outside of [0,1] in u and/or v.\r\n\t// These explicit conditionals cause a slowdown of about 25%. Sometimes a periodic transform with edge repeats might be what you want. In that case, the texture wrap mode can be set to GL_REPEAT, and the shader code can be left unchanged.\r\n\r\n\tstepvec = vec2(-stepu, -stepv);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // If the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(-stepu, 0.0);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(-stepu, stepv);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(0.0, -stepv);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n      // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(0.0, stepv);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(stepu, -stepv);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(stepu, 0.0);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tstepvec = vec2(stepu, stepv);\r\n\tnewvec = vUv + stepvec;\r\n\ttexel = texture2D(texture, newvec).rgb;\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t  // if the new seed is not \"indeterminate distance\"\r\n\t  newseed.xy = newseed.xy + stepvec;\r\n\t  newseed.z = length(newseed.xy) + (texel.b - 0.5)/texw;\r\n\t  newseed.w = texel.b;\r\n\t  if(newseed.z < bestseed.z)\r\n\t  {\r\n\t\tbestseed = newseed;\r\n\t  }\r\n\t}\r\n\r\n\tgl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);\r\n}";
-shaders_SDFF_$RGB.uniforms = { 'texture' : { type : "t", value : null}, 'texw' : { type : "f", value : 0.0}, 'texh' : { type : "f", value : 0.0}};
-shaders_SDFF_$RGB.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_SDFF_$RGB.fragmentShader = "// Displays the final distance field visualized as an RGB image.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D texture;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texlevels;\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texlevels - 1.0) / texlevels * 2.0 - 1.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\tvec3 texel;\r\n\ttexel = texture2D(texture, vUv).rgb;\r\n\tvec2 distvec = remap(texel.rg);\r\n\t\r\n\t//vec2 rainbow = 0.5 + 0.5 * (normalize(distvec));\r\n\t//gl_FragColor = vec4(rainbow, 1.0 - (length(distvec) + texel.b - 0.5) * 4.0, 1.0);\r\n\t\r\n\tfloat dist = length(distvec) + (texel.b - 0.5) / texw;\r\n\tgl_FragColor = vec4(vec2(mod(10.0 * dist, 1.0)), texel.b, 1.0);\r\n}";
-shaders_SDFF_$AA.uniforms = { 'texture' : { type : "t", value : null}, 'texw' : { type : "f", value : 0.0}, 'texh' : { type : "f", value : 0.0}};
-shaders_SDFF_$AA.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
-shaders_SDFF_$AA.fragmentShader = "// Displays the final distance field. A re-implementation of Greens method, using a single channel high precision distance map and explicit texel interpolation.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv; // Texture coords from vertex shader\r\n//varying float oneu; // 1.0 / texw from vertex shader\r\n//varying float onev; // 1.0 / texh from vertex shader\r\n\r\nuniform sampler2D texture; // Single-channel distance field\r\nuniform float texw; // Texture height (texels)\r\nuniform float texh; // Texture width (texels)\r\n\r\nvoid main()\r\n{\r\n\tvec2 uv = vUv * vec2(texw, texh); // Scale to texture rect coords\r\n\tvec2 uv00 = floor (uv - vec2(0.5)); // Lower left of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel - local blends [0,1]\r\n\t\r\n\t// Perform explicit texture interpolation of distance value D.\r\n\t// If hardware interpolation is OK, use D = texture2D( disttex, st).\r\n\t// Center st00 on lower left texel and rescale to [0,1] for lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(1.0 / texw, 1.0 / texh);\r\n\t\r\n\t// Sample distance D from the centers of the four closest texels\r\n\tfloat D00 = texture2D(texture, st00).r;\r\n\tfloat D10 = texture2D(texture, st00 + vec2 (0.5 * 1.0 / texw, 0.0)).r;\r\n\tfloat D01 = texture2D(texture, st00 + vec2 (0.0, 0.5 * 1.0 / texh)).r;\r\n\tfloat D11 = texture2D(texture, st00 + vec2 (0.5 * 1.0 / texw, 0.5 * 1.0 / texh)).r;\r\n\tvec2 D00_10 = vec2(D00, D10);\r\n\tvec2 D01_11 = vec2(D01, D11);\r\n\tvec2 D0_1 = mix(D00_10, D01_11, uvlerp.y); // Interpolate along v\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x); // Interpolate along u\r\n\t\r\n\t// Perform anisotropic analytic antialiasing\r\n\tfloat aastep = 0.7 * length(vec2(dFdx(D), dFdy(D)));\r\n\t\r\n\t// Pattern is 1 where D > 0, 0 where D < 0, with proper AA around D = 0.\r\n\tfloat pattern = smoothstep(-aastep, aastep, D);\r\n\t\r\n\tgl_FragColor = vec4(vec3(pattern), 1.0);\r\n}";
+shaders_Copy.uniforms = { tDiffuse : { type : "t", value : null}};
+shaders_Copy.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_Copy.fragmentShader = "varying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\n\r\nvoid main()\r\n{\r\n\tgl_FragColor = texture2D(tDiffuse, vUv);\r\n}";
+shaders_EDT_$FLOOD.uniforms = { tDiffuse : { type : "t", value : null}, texLevels : { type : "f", value : 0.0}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, step : { type : "f", value : 0.0}};
+shaders_EDT_$FLOOD.vertexShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform float step;\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\t// Saves a division in the fragment shader\r\n\tstepu = step / texw;\r\n\tstepv = step / texh;\r\n\t\r\n\tvUv = uv;\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$FLOOD.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This code represents one iteration of the flood filling.\r\n// You need to run it multiple times with different step lengths to perform a full distance transformation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float stepu;\r\nvarying float stepv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\n// Helper function to remap unsigned normalized floats [0.0..1.0]\r\n// coming from a texture stored in integer format internally to a\r\n// signed float vector pointing exactly to a pixel centre in texture\r\n// space. The range of valid vectors is\r\n// [-1.0+0.5/texsize, 1.0-0.5/texsize], with the special value\r\n// -1.0-0.5*texsize (represented as integer 0) meaning\r\n// \"distance vector still undetermined\".\r\n// The mapping is carefully designed to map both 8 bit and 16\r\n// bit integer texture data to distinct and exact floating point\r\n// texture coordinate offsets and vice versa.\r\n// 8 bit integer textures can be used to transform images up to\r\n// size 128x128 pixels, and 16 bit integer textures can be used to\r\n// transform images up to 32768x32768, i.e. beyond the largest\r\n// texture size available in current implementations of OpenGL.\r\n// Direct use of integers in the shader (by means of texture2DRect\r\n// and GL_RG8I and GL_RG16I texture formats) could be faster, but-1\r\n// this code is conveniently compatible even with version 1.2 of GLSL\r\n// (i.e. OpenGL 2.1), and the main shader is limited by texture access\r\n// and branching, not ALU capacity, so a few extra multiplications\r\n// for indexing and output storage are not that bad.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n     return floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvec2 remap_inv(vec2 floatvec)\r\n{\r\n     return (floatvec + 1.0) * 0.5 * texLevels / (texLevels - 1.0);\r\n}\r\n\r\n// TODO this isn't ideal, also will it work for most texture sizes?\r\nvec3 sampleTexture(sampler2D texture, vec2 vec)\r\n{\r\n\t// The algorithm depends on the texture having a CLAMP_TO_BORDER attribute and a border color with R = 0.\r\n\t// These explicit conditionals to avoid propagating incorrect vectors when looking outside of [0,1] in UV cause a slowdown of about 25%.\r\n\tif(vec.x >= 1.0 || vec.y >= 1.0 || vec.x <= 0.0 || vec.y <= 0.0)\r\n\t{\r\n\t\tvec = clamp(vec, 0.0, 1.0);\r\n\t\treturn vec3(0.0, 0.0, 0.0);\r\n\t}\r\n\t\r\n\treturn texture2D(texture, vec).rgb;\r\n}\r\n\r\nvoid testCandidate(in vec2 stepvec, inout vec4 bestseed)\r\n{\r\n\tvec2 newvec = vUv + stepvec; // Absolute position of that candidate\r\n\tvec3 texel = sampleTexture(tDiffuse, newvec).rgb;\r\n\tvec4 newseed; // Closest point from that candidate (xy), its AA distance (z) and its grayscale value (w)\r\n\tnewseed.xy = remap(texel.rg);\r\n\tif(newseed.x > -0.99999)\r\n\t{\r\n\t\t// If the new seed is not \"indeterminate distance\"\r\n\t\tnewseed.xy = newseed.xy + stepvec;\r\n\t\t\r\n\t\t// TODO: This AA assumes texw == texh. It does not allow for non-square textures.\r\n\t\tnewseed.z = length(newseed.xy) + (texel.b - 0.5) / texw;\r\n\t\tnewseed.w = texel.b;\r\n\t\t\r\n\t\tif(newseed.z < bestseed.z)\r\n\t\t{\r\n\t\t\tbestseed = newseed;\r\n\t\t}\r\n\t}\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Searches for better distance vectors among 8 candidates\r\n\tvec3 texel = sampleTexture(tDiffuse, vUv).rgb;\r\n\t\r\n\t// Closest seed so far\r\n\tvec4 bestseed;\r\n\tbestseed.xy = remap(texel.rg);\r\n\tbestseed.z = length(bestseed.xy) + (texel.b - 0.5) / texw; // Add AA edge offset to distance\r\n\tbestseed.w = texel.b; // Save AA/grayscale value\r\n\t\r\n\ttestCandidate(vec2(-stepu, -stepv), bestseed);\r\n\ttestCandidate(vec2(-stepu, 0.0), bestseed);\r\n\ttestCandidate(vec2(-stepu, stepv), bestseed);\r\n\ttestCandidate(vec2(0.0, -stepv), bestseed);\r\n\ttestCandidate(vec2(0.0, stepv), bestseed);\r\n\ttestCandidate(vec2(stepu, -stepv), bestseed);\r\n\ttestCandidate(vec2(stepu, 0.0), bestseed);\r\n\ttestCandidate(vec2(stepu, stepv), bestseed);\r\n\t\r\n\tgl_FragColor = vec4(remap_inv(bestseed.xy), bestseed.w, 1.0);\r\n}";
+shaders_EDT_$SEED.uniforms = { tDiffuse : { type : "t", value : null}, texLevels : { type : "f", value : 0.0}};
+shaders_EDT_$SEED.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$SEED.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This shader initializes the distance field in preparation for the flood filling.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texLevels;\r\n\r\nvoid main()\r\n{\r\n\tfloat texel = texture2D(tDiffuse, vUv).r;\r\n\t\r\n\t// Represents zero\r\n\tfloat myzero = 0.5 * texLevels / (texLevels - 1.0);\r\n\t\r\n\t// Represents infinity/not-yet-calculated\r\n\tfloat myinfinity = 0.0;\r\n\t\r\n\t// Sub-pixel AA distance\r\n\tfloat aadist = texel;\r\n\t\r\n\t// Pixels > 0.5 are objects, others are background\r\n\tgl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$AA.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, threshold : { type : "f", value : 0.0, min : 0.0, max : 1.0}};
+shaders_EDT_$DISPLAY_$AA.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$AA.fragmentShader = "// Distance map contour texturing.\r\n// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\nuniform float threshold;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 T00 = texture2D(tDiffuse, st00);\r\n\tvec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\tfloat D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;\r\n\tfloat D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;\r\n\tfloat D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;\r\n\tfloat D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;\r\n\t\r\n\t// Interpolate along v\r\n\tvec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);\r\n\t\r\n\t// Interpolate along u\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x);\r\n\t\r\n\tfloat g = aastep(threshold, D);\r\n\t\r\n\t// Final fragment color\r\n\tgl_FragColor = vec4(vec3(g), 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$OVERLAY.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, threshold : { type : "f", value : 0.0, min : 0.0, max : 1.0}};
+shaders_EDT_$DISPLAY_$OVERLAY.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$OVERLAY.fragmentShader = "// Distance map contour texturing.\r\n// A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\nuniform float threshold;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 T00 = texture2D(tDiffuse, st00);\r\n\tvec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\tfloat D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;\r\n\tfloat D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;\r\n\tfloat D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;\r\n\tfloat D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;\r\n\t\r\n\t// Interpolate along v\r\n\tvec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);\r\n\t\r\n\t// Interpolate along u\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x);\r\n\t\r\n\tfloat g = aastep(threshold, D);\r\n\t\r\n\t// Retrieve the B channel to get the original grayscale image\r\n\tfloat c = texture2D(tDiffuse, vUv).b;\r\n\t\r\n\t// Final fragment color\r\n\tgl_FragColor = vec4(vec3(g, c, g), 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$RGB.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}};
+shaders_EDT_$DISPLAY_$RGB.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$RGB.fragmentShader = "// Displays the final distance field visualized as an RGB image.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\tvec3 texel = texture2D(tDiffuse, vUv).rgb;\r\n\tvec2 distvec = remap(texel.rg);\r\n\t\r\n    //vec2 rainbow = 0.5 + 0.5 * (normalize(distvec));\r\n    //gl_FragColor = vec4(rainbow, 1.0 - (length(distvec) + texel.b - 0.5) * 4.0, 1.0);\r\n\t\r\n\tfloat dist = length(distvec) + (texel.b - 0.5) / texw;\r\n\tgl_FragColor = vec4(vec2(mod(10.0 * dist, 1.0)), texel.b, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$GRAYSCALE.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, distanceFactor : { type : "f", value : 30.0}};
+shaders_EDT_$DISPLAY_$GRAYSCALE.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$GRAYSCALE.fragmentShader = "// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\nuniform float threshold;\r\nuniform float distanceFactor;\r\n\r\n// Helper functions to remap unsigned normalized floats [0.0, 1.0] coming from an integer texture to the range we need [-1, 1].\r\n// The transformations are very specifically designed to map integer texel values exactly to pixel centers, and vice versa.\r\nvec2 remap(vec2 floatdata)\r\n{\r\n\treturn floatdata * (texLevels - 1.0) / texLevels * 2.0 - 1.0;\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 T00 = texture2D(tDiffuse, st00);\r\n\tvec4 T10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 T01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 T11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\tfloat D00 = length(remap(T00.rg)) + (T00.b - 0.5) / texw;\r\n\tfloat D10 = length(remap(T10.rg)) + (T10.b - 0.5) / texw;\r\n\tfloat D01 = length(remap(T01.rg)) + (T01.b - 0.5) / texw;\r\n\tfloat D11 = length(remap(T11.rg)) + (T11.b - 0.5) / texw;\r\n\t\r\n\t// Interpolate along v\r\n\tvec2 D0_1 = mix(vec2(D00, D10), vec2(D01, D11), uvlerp.y);\r\n\t\r\n\t// Interpolate along u\r\n\tfloat D = mix(D0_1.x, D0_1.y, uvlerp.x) * distanceFactor;\r\n\t\r\n\t// Final fragment color\r\n\tgl_FragColor = vec4(vec3(D), 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.uniforms = { tDiffuse : { type : "t", value : null}, texw : { type : "f", value : 0.0}, texh : { type : "f", value : 0.0}, texLevels : { type : "f", value : 0.0}, threshold : { type : "f", value : 0.0, min : 0.0, max : 1.0}};
+shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.vertexShader = "// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform float texw;\r\nuniform float texh;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\t\r\n\t// Save divisions in some of the fragment shaders\r\n\toneu = 1.0 / texw;\r\n\tonev = 1.0 / texh;\r\n\t\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_EDT_$DISPLAY_$ALPHA_$THRESHOLD.fragmentShader = "// Distance map contour texturing.\r\n// Simple alpha thresholding, produces wavey contours.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2011.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\nvarying float oneu;\r\nvarying float onev;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texw;\r\nuniform float texh;\r\nuniform float texLevels;\r\nuniform float threshold;\r\n\r\n// Replacement for RSLs filterstep(), with fwidth() done right.\r\n// threshold is constant, value is smoothly varying\r\nfloat aastep(float threshold, float value)\r\n{\r\n\tfloat afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));\r\n\treturn smoothstep(threshold - afwidth, threshold + afwidth, value); // GLSLs fwidth(value) is abs(dFdx(value)) + abs(dFdy(value))\r\n}\r\n\r\nvoid main()\r\n{\r\n\t// Scale texcoords to range ([0, texw], [0, texh])\r\n\tvec2 uv = vUv * vec2(texw, texh);\r\n\t\r\n\t// Compute texel-local (u,v) coordinates for the four closest texels\r\n\tvec2 uv00 = floor(uv - vec2(0.5)); // Lower left corner of lower left texel\r\n\tvec2 uvlerp = uv - uv00 - vec2(0.5); // Texel-local lerp blends [0,1]\r\n\t\r\n\t// Center st00 on lower left texel and rescale to [0,1] for texture lookup\r\n\tvec2 st00 = (uv00 + vec2(0.5)) * vec2(oneu, onev);\r\n\t\r\n\t// Compute distance value from four closest 8-bit RGBA texels\r\n\tvec4 D00 = texture2D(tDiffuse, st00);\r\n\tvec4 D10 = texture2D(tDiffuse, st00 + vec2(oneu, 0.0));\r\n\tvec4 D01 = texture2D(tDiffuse, st00 + vec2(0.0, onev));\r\n\tvec4 D11 = texture2D(tDiffuse, st00 + vec2(oneu, onev));\r\n\r\n\t// Retrieve the B channel to get the original grayscale image\r\n\tvec4 G = vec4(D00.b, D01.b, D10.b, D11.b);\r\n  \r\n\t// Interpolate along v\r\n\tG.xy = mix(G.xz, G.yw, uvlerp.y);\r\n\r\n\t// Interpolate along u\r\n\tfloat g = mix(G.x, G.y, uvlerp.x);\r\n\r\n\tfloat c = aastep(threshold, g);\r\n\t\r\n\t// Final fragment color\r\n\tgl_FragColor = vec4(vec3(c), 1.0);\r\n}";
+shaders_GaussianBlur.uniforms = { tDiffuse : { type : "t", value : null}, direction : { type : "v2", value : new THREE.Vector2(0,0)}, resolution : { type : "v2", value : new THREE.Vector2(1024.0,1024.0)}, flip : { type : "i", value : 0}};
+shaders_GaussianBlur.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+shaders_GaussianBlur.fragmentShader = "// Efficient Gaussian blur with linear sampling, based on https://github.com/Jam3/glsl-fast-gaussian-blur by Jam3\r\n// Also see http://rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/ by Daniel Rakos\r\n// Must use on a texture that has linear (gl.LINEAR) filtering, the linear sampling approach requires this to get info about two adjacent pixels from one texture read, making it faster than discrete sampling\r\n// Requires a horizontal and vertical pass to perform the full blur. It is written this way because a single pass involves many more texture reads\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform vec2 resolution;\r\nuniform vec2 direction;\r\nuniform int flip;\r\n\r\nvoid main()\r\n{\r\n\tvec2 uv = vUv;\r\n\t\r\n\tif(flip != 0)\r\n\t{\r\n\t\tuv.y = 1.0 - uv.y;\r\n\t}\r\n\t\r\n\tvec2 offset = vec2(1.3333333333333333) * direction;\r\n\tvec4 color = vec4(0.0);\r\n\tcolor += texture2D(tDiffuse, uv) * 0.29411764705882354;\r\n\tcolor += texture2D(tDiffuse, uv + (offset / resolution)) * 0.35294117647058826;\r\n\tcolor += texture2D(tDiffuse, uv - (offset / resolution)) * 0.35294117647058826;\r\n\tgl_FragColor = color;\r\n}";
 Main.main();
 })(typeof console != "undefined" ? console : {log:function(){}}, typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

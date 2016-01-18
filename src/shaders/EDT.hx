@@ -62,6 +62,19 @@ class EDT_DISPLAY_RGB {
 	public static var fragmentShader = FileReader.readFile("shaders/edt_display_rgb.fragment");
 }
 
+// Displays distance field as a grayscale image
+class EDT_DISPLAY_GRAYSCALE {
+	public static var uniforms = {
+		tDiffuse: { type: "t", value: null },
+		texw: { type: "f", value: 0.0 },
+		texh: { type: "f", value: 0.0 },
+		texLevels: { type: "f", value: 0.0 },
+		distanceFactor: { type: "f", value: 30.0 }
+	};
+	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("shaders/edt_display_grayscale.fragment");
+}
+
 // Flawed display method, alpha thresholding that produces wavy contours
 class EDT_DISPLAY_ALPHA_THRESHOLD {
 	public static var uniforms = {

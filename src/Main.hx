@@ -10,6 +10,7 @@ import msignal.Signal.Signal0;
 import msignal.Signal.Signal1;
 import shaders.Copy;
 import shaders.EDT.EDT_DISPLAY_AA;
+import shaders.EDT.EDT_DISPLAY_GRAYSCALE;
 import shaders.EDT.EDT_DISPLAY_OVERLAY;
 import shaders.EDT.EDT_DISPLAY_RGB;
 import stats.Stats;
@@ -27,7 +28,7 @@ import three.WebGLRenderTarget;
 import webgl.Detector;
 
 class Main {
-	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGLDistanceFields";
+	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
 	public static inline var WEBSITE_URL:String = "http://samcodes.co.uk/";
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
@@ -45,12 +46,13 @@ class Main {
 	private var keyStrInput:Array<Dynamic> = new Array<Dynamic>();
 	
 	private var aaMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
+	private var grayscaleMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var rgbMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var overlayMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	private var passthroughMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
 	
 	private var displayShader:String = "AA";
-	private var displayShaders = [ "AA", "OVERLAY", "RGB", "PASSTHROUGH" ];
+	private var displayShaders = [ "AA", "OVERLAY", "GRAYSCALE", "RGB", "PASSTHROUGH" ];
 	
 	public var signal_letterTyped(default, null) = new Signal1<String>();
 	public var signal_windowResized(default, null) = new Signal0();
@@ -171,6 +173,20 @@ class Main {
 			aaMaterial.uniforms.threshold.value = 0.0;
 			
 			aaMaterials.push( { mesh: mesh, material: aaMaterial, sdf: target } );
+			
+			var grayscaleMaterial = new ShaderMaterial({
+				vertexShader: EDT_DISPLAY_GRAYSCALE.vertexShader,
+				fragmentShader: EDT_DISPLAY_GRAYSCALE.fragmentShader,
+				uniforms: EDT_DISPLAY_GRAYSCALE.uniforms
+			});
+			grayscaleMaterial.derivatives = true;
+			grayscaleMaterial.uniforms.tDiffuse.value = target;
+			grayscaleMaterial.uniforms.texw.value = target.width;
+			grayscaleMaterial.uniforms.texh.value = target.height;
+			grayscaleMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+			grayscaleMaterial.uniforms.distanceFactor.value = 30.0;
+			
+			grayscaleMaterials.push( { mesh: mesh, material: grayscaleMaterial, sdf: target } );
 		
 			var rgbMaterial = new ShaderMaterial({
 				vertexShader: EDT_DISPLAY_RGB.vertexShader,
@@ -297,6 +313,7 @@ class Main {
 		
 		ShaderGUI.generate(shaderGUI, "AA", EDT_DISPLAY_AA.uniforms);
 		ShaderGUI.generate(shaderGUI, "OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
+		ShaderGUI.generate(shaderGUI, "GRAYSCALE", EDT_DISPLAY_GRAYSCALE.uniforms);
 		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
 		ShaderGUI.generate(shaderGUI, "PASSTHROUGH", Copy.uniforms);
 	}
@@ -309,6 +326,10 @@ class Main {
 				}
 			case "RGB":
 				for (o in rgbMaterials) {
+					o.mesh.material = o.material;
+				}
+			case "GRAYSCALE":
+				for (o in grayscaleMaterials) {
 					o.mesh.material = o.material;
 				}
 			case "OVERLAY":

@@ -1,5 +1,8 @@
-// Distance map contour texturing by Stefan Gustavson, 2011.
+// Distance map contour texturing.
 // A reimplementation of Greens method, with a 16-bit 8:8 distance map and explicit bilinear interpolation.
+
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2011.
 // This code is in the public domain.
 
 varying vec2 vUv;

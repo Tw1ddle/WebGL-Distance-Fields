@@ -1,3 +1,7 @@
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2010.
+// This code is in the public domain.
+
 varying vec2 vUv;
 varying float oneu;
 varying float onev;

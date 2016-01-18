@@ -1,5 +1,8 @@
-// Distance map contour texturing by Stefan Gustavson, 2011.
+// Distance map contour texturing.
 // Simple alpha thresholding, produces wavey contours.
+
+// Adapted for three.js demo by Sam Twidale.
+// Original implementation by Stefan Gustavson 2011.
 // This code is in the public domain.
 
 varying vec2 vUv;
