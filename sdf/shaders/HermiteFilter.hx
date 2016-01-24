@@ -1,4 +1,4 @@
-package shaders;
+package sdf.shaders;
 
 import three.Vector2;
 import util.FileReader;

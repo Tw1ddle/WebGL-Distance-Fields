@@ -1,0 +1,11 @@
+{
+	"name": "sdfgen",
+	"url" : "http://samcodes.co.uk/code/",
+	"license": "MIT",
+	"tags": ["js", "javascript", "web", "webgl", "haxe", "utility"],
+	"description": "Fast Euclidean distance field generation and rendering utility for the JavaScript/WebGL target",
+	"version": "1.0.0",
+	"releasenote": "Initial release",
+	"contributors": ["samcodes"],
+	"dependencies": { "sure": "", "bin-packing": "1.0.1" }
+}

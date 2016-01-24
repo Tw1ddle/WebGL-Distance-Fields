@@ -1,4 +1,4 @@
-package shaders;
+package sdf.shaders;
 
 import util.FileReader;
 
@@ -11,8 +11,8 @@ class EDT_FLOOD {
 		texh: { type: "f", value: 0.0 },
 		step: { type: "f", value: 0.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_flood.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_flood.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_flood.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_flood.fragment");
 }
 
 class EDT_SEED {
@@ -20,8 +20,8 @@ class EDT_SEED {
 		tDiffuse: { type: "t", value: null },
 		texLevels: { type: "f", value: 0.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_seed.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_seed.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_seed.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_seed.fragment");
 }
 
 // Displays distance field as antialiased black/white image
@@ -33,8 +33,8 @@ class EDT_DISPLAY_AA {
 		texLevels: { type: "f", value: 0.0 },
 		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_display_aa.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_display_aa.fragment");
 }
 
 // Displays distance field as antialiased black/white with the original black image pixels, and the outline drawn in green
@@ -46,8 +46,8 @@ class EDT_DISPLAY_OVERLAY {
 		texLevels: { type: "f", value: 0.0 },
 		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_display_overlay.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_display_overlay.fragment");
 }
 
 // Displays distance field as an RGB image
@@ -58,8 +58,8 @@ class EDT_DISPLAY_RGB {
 		texh: { type: "f", value: 0.0 },
 		texLevels: { type: "f", value: 0.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_display_rgb.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_display_rgb.fragment");
 }
 
 // Displays distance field as a grayscale image
@@ -71,8 +71,8 @@ class EDT_DISPLAY_GRAYSCALE {
 		texLevels: { type: "f", value: 0.0 },
 		distanceFactor: { type: "f", value: 30.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_display_grayscale.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_display_grayscale.fragment");
 }
 
 // Flawed display method, alpha thresholding that produces wavy contours
@@ -84,6 +84,6 @@ class EDT_DISPLAY_ALPHA_THRESHOLD {
 		texLevels: { type: "f", value: 0.0 },
 		threshold: { type: "f", value: 0.0, min: 0.0, max: 1.0 }
 	};
-	public static var vertexShader = FileReader.readFile("shaders/edt_display.vertex");
-	public static var fragmentShader = FileReader.readFile("shaders/edt_alpha_threshold.fragment");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_display.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_alpha_threshold.fragment");
 }

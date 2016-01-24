@@ -1,4 +1,4 @@
-package;
+package sdf.atlas;
 
 import binpacking.Rect;
 import binpacking.SimplifiedMaxRectsPacker;

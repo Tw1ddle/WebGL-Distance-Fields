@@ -4,3 +4,6 @@
 -lib msignal
 -lib sure
 -lib bin-packing
+
+-cp source
+-cp sdfgen

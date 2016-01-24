@@ -1,10 +1,10 @@
-package;
+package sdf.generator;
 
 import msignal.Signal.Signal2;
-import shaders.Copy;
-import shaders.EDT.EDT_FLOOD;
-import shaders.EDT.EDT_SEED;
-import shaders.GaussianBlur;
+import sdf.shaders.Copy;
+import sdf.shaders.EDT.EDT_FLOOD;
+import sdf.shaders.EDT.EDT_SEED;
+import sdf.shaders.GaussianBlur;
 import three.Mesh;
 import three.OrthographicCamera;
 import three.PixelFormat;

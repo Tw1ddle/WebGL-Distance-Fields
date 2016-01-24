@@ -15,7 +15,7 @@
   </output>
   <!-- Other classes to be compiled into your SWF -->
   <classpaths>
-    <class path="." />
+    <!-- example: <class path="..." /> -->
   </classpaths>
   <!-- Build options -->
   <build>
@@ -46,7 +46,7 @@
   <options>
     <option showHiddenPaths="False" />
     <option testMovie="Custom" />
-    <option testMovieCommand="..\bin\$(BuildConfig)\index.html" />
+    <option testMovieCommand="bin\$(BuildConfig)\index.html" />
   </options>
   <!-- Plugin storage -->
   <storage />
