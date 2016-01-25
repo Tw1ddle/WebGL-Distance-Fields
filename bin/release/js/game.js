@@ -264,7 +264,7 @@ Main.prototype = {
 		var height = window.innerHeight * this.renderer.getPixelRatio();
 		this.scene = new THREE.Scene();
 		this.camera = new THREE.PerspectiveCamera(75,width / height,1.0,8000.0);
-		this.camera.position.z = 300;
+		this.camera.position.z = 150;
 		this.composer = new THREE.EffectComposer(this.renderer);
 		this.renderPass = new THREE.RenderPass(this.scene,this.camera);
 		this.aaPass = new THREE.ShaderPass({ vertexShader : shaders_FXAA.vertexShader, fragmentShader : shaders_FXAA.fragmentShader, uniforms : shaders_FXAA.uniforms});
@@ -290,13 +290,37 @@ Main.prototype = {
 			if(event2.keyCode == null) keycode1 = event2.charCode; else keycode1 = event2.keyCode;
 			if(keycode1 == 8 || keycode1 == 46) return;
 			var ch = String.fromCharCode(keycode1);
-			if(ch.length > 0 && ch != " ") {
+			if(ch.length > 0) {
 				_g.generateDistanceFieldForString(ch);
 				_g.addCharacter(_g.characterMap.get(ch).create());
 			}
 			event2.preventDefault();
 		},true);
 		this.setupGUI();
+		this.generateDistanceFieldForString("T");
+		this.addCharacter(this.characterMap.get("T").create());
+		haxe_Timer.delay(function() {
+			_g.generateDistanceFieldForString("Y");
+			_g.addCharacter(_g.characterMap.get("Y").create());
+		},500);
+		haxe_Timer.delay(function() {
+			_g.generateDistanceFieldForString("P");
+			_g.addCharacter(_g.characterMap.get("P").create());
+		},1000);
+		haxe_Timer.delay(function() {
+			_g.generateDistanceFieldForString("E");
+			_g.addCharacter(_g.characterMap.get("E").create());
+		},1500);
+		haxe_Timer.delay(function() {
+			_g.generateDistanceFieldForString(".");
+			_g.addCharacter(_g.characterMap.get(".").create());
+		},2000);
+		haxe_Timer.delay(function() {
+			_g.addCharacter(_g.characterMap.get(".").create());
+		},2300);
+		haxe_Timer.delay(function() {
+			_g.addCharacter(_g.characterMap.get(".").create());
+		},2500);
 		gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
 	}
@@ -338,7 +362,7 @@ Main.prototype = {
 			character.position.x += character.metrics.width;
 		} else character.position.set(0,0,0);
 		this.characters.push(character);
-		motion_Actuate.tween(this.camera.position,1,{ x : character.position.x, y : character.position.y, z : this.camera.position.z + 5});
+		motion_Actuate.tween(this.camera.position,1,{ x : character.position.x, y : character.position.y, z : this.camera.position.z + 25});
 	}
 	,removeCharacter: function() {
 		if(this.characters.length == 0) return;
@@ -346,7 +370,7 @@ Main.prototype = {
 		if(!(ch != null)) throw new js__$Boot_HaxeError("FAIL: ch != null");
 		if(this.characters.length > 0) {
 			var last = this.characters[this.characters.length - 1].position;
-			motion_Actuate.tween(this.camera.position,1,{ x : last.x, y : last.y, z : this.camera.position.z - 2});
+			motion_Actuate.tween(this.camera.position,1,{ x : last.x, y : last.y, z : this.camera.position.z - 25});
 		}
 		this.scene.remove(ch);
 	}
@@ -505,11 +529,24 @@ var haxe_Timer = function(time_ms) {
 	},time_ms);
 };
 haxe_Timer.__name__ = true;
+haxe_Timer.delay = function(f,time_ms) {
+	var t = new haxe_Timer(time_ms);
+	t.run = function() {
+		t.stop();
+		f();
+	};
+	return t;
+};
 haxe_Timer.stamp = function() {
 	return new Date().getTime() / 1000;
 };
 haxe_Timer.prototype = {
-	run: function() {
+	stop: function() {
+		if(this.id == null) return;
+		clearInterval(this.id);
+		this.id = null;
+	}
+	,run: function() {
 	}
 	,__class__: haxe_Timer
 };

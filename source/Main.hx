@@ -28,6 +28,7 @@ import three.TextureFilter;
 import composer.RenderPass;
 import three.Vector3;
 import dat.ShaderGUI;
+import haxe.Timer;
 
 @:native("THREE.TrackballControls")
 extern class TrackballControls {
@@ -144,7 +145,7 @@ class Main {
 		
 		scene = new Scene();
 		camera = new PerspectiveCamera(75, width / height, 1.0, 8000.0);
-		camera.position.z = 100;
+		camera.position.z = 150;
 		
 		// Setup composer passes
 		composer = new EffectComposer(renderer);
@@ -205,6 +206,38 @@ class Main {
 		#end
 		
 		setupGUI();
+		
+		// Add some instructional text
+		generateDistanceFieldForString("T");
+		addCharacter(characterMap.get("T").create());
+		
+		Timer.delay(function() {
+			generateDistanceFieldForString("Y");
+			addCharacter(characterMap.get("Y").create());
+		}, 500);
+		
+		Timer.delay(function() {
+			generateDistanceFieldForString("P");
+			addCharacter(characterMap.get("P").create());
+		}, 1000);
+		
+		Timer.delay(function() {
+			generateDistanceFieldForString("E");
+			addCharacter(characterMap.get("E").create());
+		}, 1500);
+		
+		Timer.delay(function() {
+			generateDistanceFieldForString(".");
+			addCharacter(characterMap.get(".").create());
+		}, 2000);
+		
+		Timer.delay(function() {
+			addCharacter(characterMap.get(".").create());
+		}, 2300);
+		
+		Timer.delay(function() {
+			addCharacter(characterMap.get(".").create());
+		}, 2500);
 		
 		// Present game and start animation loop
 		gameDiv.appendChild(renderer.domElement);
