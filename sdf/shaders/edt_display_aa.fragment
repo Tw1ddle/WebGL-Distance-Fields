@@ -61,5 +61,5 @@ void main()
 	float g = aastep(threshold, D);
 	
 	// Final fragment color
-	gl_FragColor = vec4(vec3(g), 1.0);
+	gl_FragColor = vec4(g);
 }

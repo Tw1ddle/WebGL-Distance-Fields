@@ -1,35 +1,52 @@
 package;
 
 import dat.GUI;
-import dat.ShaderGUI;
 import dat.ThreeObjectGUI;
 import haxe.ds.StringMap;
 import js.Browser;
 import js.html.CanvasElement;
-import msignal.Signal.Signal0;
-import msignal.Signal.Signal1;
+import js.html.TextMetrics;
+import motion.Actuate;
 import sdf.generator.SDFMaker;
-import sdf.shaders.Copy;
 import sdf.shaders.EDT.EDT_DISPLAY_AA;
-import sdf.shaders.EDT.EDT_DISPLAY_GRAYSCALE;
-import sdf.shaders.EDT.EDT_DISPLAY_OVERLAY;
-import sdf.shaders.EDT.EDT_DISPLAY_RGB;
-import sdf.shaders.EDT.EDT_FLOOD;
-import sdf.shaders.EDT.EDT_SEED;
 import stats.Stats;
-import TextGenerator;
 import three.Color;
-import three.ImageUtils;
 import three.Mapping;
-import three.Mesh;
 import three.PerspectiveCamera;
 import three.PlaneGeometry;
+import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
+import three.UniformsUtils;
 import three.WebGLRenderer;
-import three.WebGLRenderTarget;
 import webgl.Detector;
+import composer.ShaderPass;
+import shaders.FXAA;
+import three.WebGLRenderTarget;
+import three.TextureFilter;
+import composer.RenderPass;
+import three.Vector3;
+import dat.ShaderGUI;
+
+@:native("THREE.TrackballControls")
+extern class TrackballControls {
+	public function new(object:Dynamic, ?domElement:Dynamic);
+	
+	public function handleResize():Void;
+	public function update():Void;
+	
+	public var enabled:Bool;
+	public var rotateSpeed:Float;
+	public var zoomSpeed:Float;
+	public var panSpeed:Float;
+	public var noZoom:Bool;
+	public var noPan:Bool;
+	public var staticMoving:Bool;
+	public var dynamicDampingFactor:Float;
+	public var keys:Dynamic;
+	public var target:Vector3;
+}
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
@@ -40,26 +57,16 @@ class Main {
 	private var gameAttachPoint:Dynamic;
 	
 	private var renderer:WebGLRenderer;
+	private var composer:EffectComposer;
+	private var renderPass:RenderPass;
+	private var aaPass:ShaderPass;
 	
 	private var scene:Scene;
 	private var camera:PerspectiveCamera;
 	
 	private var sdfMaker:SDFMaker;
-	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
-	
-	private var keyStrInput:Array<Dynamic> = new Array<Dynamic>();
-	
-	private var aaMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	private var grayscaleMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	private var rgbMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	private var overlayMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	private var passthroughMaterials = new Array<{ mesh:Mesh, material: ShaderMaterial, sdf: WebGLRenderTarget }>();
-	
-	private var displayShader:String = "AA";
-	private var displayShaders = [ "AA", "OVERLAY", "GRAYSCALE", "RGB", "PASSTHROUGH" ];
-	
-	public var signal_letterTyped(default, null) = new Signal1<String>();
-	public var signal_windowResized(default, null) = new Signal0();
+	private var characterMap:StringMap<Character> = new StringMap<Character>();
+	private var characters:Array<Character> = new Array<Character>();
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
 	private static var dt:Float = 0.0; // Frame delta time
@@ -132,117 +139,34 @@ class Main {
 		gameAttachPoint = Browser.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
 		
-		var width = 400 * renderer.getPixelRatio();
-		var height = 400 * renderer.getPixelRatio();
+		var width = Browser.window.innerWidth * renderer.getPixelRatio();
+		var height = Browser.window.innerHeight * renderer.getPixelRatio();
 		
 		scene = new Scene();
-		camera = new PerspectiveCamera(75, width / height, 1, 10000);
-		camera.position.z = 80;
+		camera = new PerspectiveCamera(75, width / height, 1.0, 8000.0);
+		camera.position.z = 100;
+		
+		// Setup composer passes
+		composer = new EffectComposer(renderer);
+		
+		renderPass = new RenderPass(scene, camera);
+		
+		aaPass = new ShaderPass( { vertexShader: FXAA.vertexShader, fragmentShader: FXAA.fragmentShader, uniforms: FXAA.uniforms } );
+		aaPass.renderToScreen = true;
+		aaPass.uniforms.resolution.value.set(width, height);
+		
+		composer.addPass(renderPass);
+		composer.addPass(aaPass);
 		
 		// Initial renderer setup
-		// Connect signals and slots
-		signal_windowResized.add(function():Void {
-			var width = 400 * renderer.getPixelRatio();
-			var height = 400 * renderer.getPixelRatio();
-			
-			renderer.setSize(width, height);
-			
-			camera.aspect = width / height;
-			camera.updateProjectionMatrix();
-		});
-		signal_windowResized.dispatch();
+		onResize();
 		
 		sdfMaker = new SDFMaker(renderer);
-		
-		sdfMaker.signal_textureLoaded.add(function(id:Dynamic, target:WebGLRenderTarget):Void {
-			//trace("Loaded texture with tag: " + tag + " to target: " + target);
-			if (sdfMap.exists(id)) {
-				return; // SDF texture already exists, so exit early
-			}
-			
-			var geometry = new PlaneGeometry(target.width, target.height);			
-			var mesh = new Mesh(geometry);
-			
-			// Setup materials
-			var aaMaterial = new ShaderMaterial({
-				vertexShader: EDT_DISPLAY_AA.vertexShader,
-				fragmentShader: EDT_DISPLAY_AA.fragmentShader,
-				uniforms: EDT_DISPLAY_AA.uniforms
-			});
-			aaMaterial.derivatives = true;
-			aaMaterial.uniforms.tDiffuse.value = target;
-			aaMaterial.uniforms.texw.value = target.width;
-			aaMaterial.uniforms.texh.value = target.height;
-			aaMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-			aaMaterial.uniforms.threshold.value = 0.0;
-			
-			aaMaterials.push( { mesh: mesh, material: aaMaterial, sdf: target } );
-			
-			var grayscaleMaterial = new ShaderMaterial({
-				vertexShader: EDT_DISPLAY_GRAYSCALE.vertexShader,
-				fragmentShader: EDT_DISPLAY_GRAYSCALE.fragmentShader,
-				uniforms: EDT_DISPLAY_GRAYSCALE.uniforms
-			});
-			grayscaleMaterial.derivatives = true;
-			grayscaleMaterial.uniforms.tDiffuse.value = target;
-			grayscaleMaterial.uniforms.texw.value = target.width;
-			grayscaleMaterial.uniforms.texh.value = target.height;
-			grayscaleMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-			grayscaleMaterial.uniforms.distanceFactor.value = 30.0;
-			
-			grayscaleMaterials.push( { mesh: mesh, material: grayscaleMaterial, sdf: target } );
-			
-			var rgbMaterial = new ShaderMaterial({
-				vertexShader: EDT_DISPLAY_RGB.vertexShader,
-				fragmentShader: EDT_DISPLAY_RGB.fragmentShader,
-				uniforms: EDT_DISPLAY_RGB.uniforms
-			});
-			rgbMaterial.uniforms.tDiffuse.value = target;
-			rgbMaterial.uniforms.texw.value = target.width;
-			rgbMaterial.uniforms.texh.value = target.height;
-			rgbMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-			
-			rgbMaterials.push( { mesh: mesh, material: rgbMaterial, sdf: target } );
-			
-			var overlayMaterial = new ShaderMaterial({
-				vertexShader: EDT_DISPLAY_OVERLAY.vertexShader,
-				fragmentShader: EDT_DISPLAY_OVERLAY.fragmentShader,
-				uniforms: EDT_DISPLAY_OVERLAY.uniforms
-			});
-			overlayMaterial.derivatives = true;
-			overlayMaterial.uniforms.tDiffuse.value = target;
-			overlayMaterial.uniforms.texw.value = target.width;
-			overlayMaterial.uniforms.texh.value = target.height;
-			overlayMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-			overlayMaterial.uniforms.threshold.value = 0.0;
-			
-			overlayMaterials.push( { mesh: mesh, material: overlayMaterial, sdf: target } );
-			
-			var copyMaterial = new ShaderMaterial( {
-				vertexShader: Copy.vertexShader,
-				fragmentShader: Copy.fragmentShader,
-				uniforms: Copy.uniforms
-			});
-			copyMaterial.uniforms.tDiffuse.value = target;
-			
-			passthroughMaterials.push( { mesh: mesh, material: copyMaterial, sdf: target } );
-			
-			mesh.material = aaMaterial;
-			scene.add(mesh);
-			
-			mesh.position.set(0, 0, 0);
-			
-			sdfMap.set(id, target);
-		});
-		
-		loadTexture("assets/test2.png");
-		
-		// TODO notify on context loss
 		
 		// Event setup
 		// Window resize event
 		Browser.window.addEventListener("resize", function():Void {
-			signal_windowResized.dispatch();
+			onResize();
 		}, true);
 		
 		// Disable context menu opening
@@ -250,10 +174,27 @@ class Main {
 			event.preventDefault();
 		}, true);
 		
-		Browser.window.addEventListener("keypress", function(event) {
-			var keycode = event.keyCode == null ? event.keyCode : event.charCode;
+		Browser.window.addEventListener("keydown", function(event) {
+			var keycode = event.keyCode == null ? event.charCode : event.keyCode;
 			
-			loadCanvasForKeyCode(keycode);
+			if (keycode == 8 || keycode == 46) {
+				removeCharacter();
+			}
+		}, true);
+		
+		Browser.window.addEventListener("keypress", function(event) {
+			var keycode = event.keyCode == null ? event.charCode : event.keyCode;
+			
+			if (keycode == 8 || keycode == 46) {
+				return;
+			}
+			
+			var ch = String.fromCharCode(keycode);
+			
+			if(ch.length > 0) {
+				generateDistanceFieldForString(ch);
+				addCharacter(characterMap.get(ch).create());
+			}
 			
 			event.preventDefault();
 		}, true);
@@ -265,45 +206,87 @@ class Main {
 		
 		setupGUI();
 		
-		// Load a new unicode letter repeatedly
-		//var timer = new Timer(20);
-		//timer.run = function() { loadCanvasForKeyCode(getNextKeyCode()); };
-		
 		// Present game and start animation loop
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
 	}
 	
-	private var keycode:Int = 0;
-	private function getNextKeyCode():Int {
-		return keycode++;
+	private function onResize():Void {
+		var width = Browser.window.innerWidth * renderer.getPixelRatio();
+		var height = Browser.window.innerHeight * renderer.getPixelRatio();
+		
+		renderer.setSize(Browser.window.innerWidth, Browser.window.innerHeight);
+		
+		composer.setSize(width, height);
+		aaPass.uniforms.resolution.value.set(width, height);
+		
+		camera.aspect = width / height;
+		camera.updateProjectionMatrix();
 	}
 	
-	private function loadCanvasForKeyCode(keycode:Int):Void {
-		var keyStr = String.fromCharCode(keycode);
-		
-		// Don't accept the same string input more than once (as we'll have already generated that text before)
-		if (keyStrInput.indexOf(keyStr) != -1) {
-			return;
+	private function generateDistanceFieldForString(s:String):Void {
+		// Don't generate for the same string input more than once
+		if (!characterMap.exists(s)) {
+			var data:{canvas: CanvasElement, metrics:TextMetrics } = InputGenerator.generateText(s);
+			generateDistanceField(data.canvas, data.metrics, s);
 		}
-		
-		if (sdfMap.exists(keyStr)) {
-			return;
-		}
-		
-		loadCanvas(TextGenerator.generateText(keyStr), keyStr);		
 	}
 	
-	private inline function loadTexture(url:String):Void {
-		var texture = ImageUtils.loadTexture(url, Mapping.UVMapping, function(texture:Texture):Void {
-			sdfMaker.transformTexture(texture, "", false);
-		});
-	}
-	
-	private inline function loadCanvas(element:CanvasElement, id:Dynamic):Void {
+	private inline function generateDistanceField(element:CanvasElement, metrics:TextMetrics, id:String):Void {
 		var texture = new Texture(element, Mapping.UVMapping);
 		texture.needsUpdate = true;
-		sdfMaker.transformTexture(texture, id, true);
+		var target = sdfMaker.transformTexture(texture, true);
+		
+		var geometry = new PlaneGeometry(target.width, target.height);
+		
+		var aaMaterial = new ShaderMaterial({
+			vertexShader: EDT_DISPLAY_AA.vertexShader,
+			fragmentShader: EDT_DISPLAY_AA.fragmentShader,
+			uniforms: UniformsUtils.clone(EDT_DISPLAY_AA.uniforms)
+		});
+		aaMaterial.transparent = true;
+		aaMaterial.derivatives = true;
+		aaMaterial.uniforms.tDiffuse.value = target;
+		aaMaterial.uniforms.texw.value = target.width;
+		aaMaterial.uniforms.texh.value = target.height;
+		aaMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+		aaMaterial.uniforms.threshold.value = 0.0;
+		
+		characterMap.set(id, new Character(geometry, aaMaterial, target.width, target.height, metrics));
+	}
+	
+	private inline function addCharacter(character:Character):Void {
+		scene.add(character);
+		
+		// TODO tween in
+		if (characters.length > 0) {
+			var last = characters[characters.length - 1].position;
+			character.position.set(last.x, last.y, last.z + 1.0);
+			character.position.x += character.metrics.width;
+		} else {
+			character.position.set(0, 0, 0);
+		}
+		
+		characters.push(character);
+		Actuate.tween(camera.position, 1, { x: character.position.x, y: character.position.y, z: camera.position.z + 25 } );
+	}
+	
+	private function removeCharacter():Void {
+		if (characters.length == 0) {
+			return;
+		}
+		
+		var ch = characters.pop();
+		
+		Sure.sure(ch != null);
+		
+		if (characters.length > 0) {
+			var last = characters[characters.length - 1].position;
+			Actuate.tween(camera.position, 1, { x: last.x, y: last.y, z: camera.position.z - 25 } );
+		}
+		
+		// TODO tween out
+		scene.remove(ch);
 	}
 	
 	private function animate(time:Float):Void {
@@ -314,7 +297,7 @@ class Main {
 		dt = (time - lastAnimationTime) * 0.001; // Seconds
 		lastAnimationTime = time;
 		
-		renderer.render(scene, camera);
+		composer.render(dt);
 		
 		Browser.window.requestAnimationFrame(animate);
 		
@@ -327,41 +310,7 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		shaderGUI.add(this, "displayShader", displayShaders).listen().onChange(onDisplayShaderChanged).name("Display Shader");
-		
-		ShaderGUI.generate(shaderGUI, "AA", EDT_DISPLAY_AA.uniforms);
-		ShaderGUI.generate(shaderGUI, "OVERLAY", EDT_DISPLAY_OVERLAY.uniforms);
-		ShaderGUI.generate(shaderGUI, "GRAYSCALE", EDT_DISPLAY_GRAYSCALE.uniforms);
-		ShaderGUI.generate(shaderGUI, "RGB", EDT_DISPLAY_RGB.uniforms);
-		ShaderGUI.generate(shaderGUI, "PASSTHROUGH", Copy.uniforms);
-		
-		ShaderGUI.generate(shaderGUI, "SEED", EDT_SEED.uniforms);
-		ShaderGUI.generate(shaderGUI, "FLOOD", EDT_FLOOD.uniforms);
-	}
-	
-	private function onDisplayShaderChanged(id:String):Void {		
-		switch(id) {
-			case "AA":
-				for (o in aaMaterials) {
-					o.mesh.material = o.material;
-				}
-			case "RGB":
-				for (o in rgbMaterials) {
-					o.mesh.material = o.material;
-				}
-			case "GRAYSCALE":
-				for (o in grayscaleMaterials) {
-					o.mesh.material = o.material;
-				}
-			case "OVERLAY":
-				for (o in overlayMaterials) {
-					o.mesh.material = o.material;
-				}
-			case "PASSTHROUGH":
-				for (o in passthroughMaterials) {
-					o.mesh.material = o.material;
-				}
-		}
+		ShaderGUI.generate(shaderGUI, "FXAA", aaPass.uniforms);
 	}
 	
 	#if debug

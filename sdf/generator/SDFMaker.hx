@@ -1,6 +1,5 @@
 package sdf.generator;
 
-import msignal.Signal.Signal2;
 import sdf.shaders.Copy;
 import sdf.shaders.EDT.EDT_FLOOD;
 import sdf.shaders.EDT.EDT_SEED;
@@ -20,21 +19,21 @@ import three.WebGLRenderTargetOptions;
 import three.Wrapping;
 
 class SDFMaker {
+	public var texLevels(default, null):Float;
+	
 	private var renderer:WebGLRenderer;
 	private var scene(default, null):Scene;
 	private var camera(default, null):OrthographicCamera;
-	public var texLevels(default, null):Float;
 	
 	private var renderTargetParams:WebGLRenderTargetOptions;
-	private var ping:WebGLRenderTarget;
-	private var pong:WebGLRenderTarget;
 	
 	private var blurMaterial:ShaderMaterial; // Material for performing optional initial blur on the input texture
 	private var seedMaterial:ShaderMaterial; // Material for creating the initial seed texture
 	private var floodMaterial:ShaderMaterial; // Material for performing the EDT
-	private var copyMaterial:ShaderMaterial; // Material for copying the finalized texture elsewhere
 	
-	public var signal_textureLoaded(default, null) = new Signal2<Dynamic, WebGLRenderTarget>();
+	/*
+	private var copyMaterial:ShaderMaterial; // Material for copying the finalized texture elsewhere
+	*/
 	
 	public function new(renderer:WebGLRenderer) {		
 		texLevels = 256.0;
@@ -66,11 +65,13 @@ class SDFMaker {
 			uniforms: EDT_FLOOD.uniforms
 		});
 		
+		/*
 		copyMaterial = new ShaderMaterial( {
 			vertexShader: Copy.vertexShader,
 			fragmentShader: Copy.fragmentShader,
 			uniforms: Copy.uniforms
 		});
+		*/
 		
 		renderTargetParams = {
 			minFilter: TextureFilter.NearestFilter,
@@ -85,7 +86,7 @@ class SDFMaker {
 	}
 	
 	// Performs EDT on the texture, returning a render target with the result
-	public function transformTexture(texture:Texture, id:Dynamic, blurInput:Bool = true):WebGLRenderTarget {
+	public function transformTexture(texture:Texture, blurInput:Bool = true):WebGLRenderTarget {
 		#if debug
 		var start = haxe.Timer.stamp();
 		#end
@@ -94,8 +95,8 @@ class SDFMaker {
 		var height = texture.image.height;
 		
 		// Render targets, buffers for iterative EDT rendering
-		ping = new WebGLRenderTarget(width, height, renderTargetParams);
-		pong = new WebGLRenderTarget(width, height, renderTargetParams);
+		var ping = new WebGLRenderTarget(width, height, renderTargetParams);
+		var pong = new WebGLRenderTarget(width, height, renderTargetParams);
 		
 		if (blurInput) {
 			// Perform small Gaussian blur on the input, reducing the wavey or blockiness or poorly AA'd input images at the cost of the accuracy of the original shape
@@ -196,7 +197,6 @@ class SDFMaker {
 		trace("Transform duration: " + duration);
 		#end
 		
-		signal_textureLoaded.dispatch(id, last);
 		return last;
 	}
 }

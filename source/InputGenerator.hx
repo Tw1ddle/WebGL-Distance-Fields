@@ -3,10 +3,15 @@ package;
 import js.Browser;
 import js.html.CanvasElement;
 import js.html.Float32Array;
+import js.html.TextMetrics;
 
-class TextGenerator {
-	// TODO work on this to flexibly create centered text on canvas + get metrics
-	public static function generateText(s:String, width:Int = 512, height:Int = 512):CanvasElement {
+// Generates anti-aliased canvas textures for use as input to the SDF code
+class InputGenerator {
+	// TODO work on this to flexibly create centered AA'd text on canvas + take font metrics into account/return them
+	public static function generateText(s:String, width:Int = 512, height:Int = 512, font:String = "Consolas", scaleFactor:Float = 0.25):{ canvas:CanvasElement, metrics:TextMetrics } {
+		Sure.sure(s != null);
+		Sure.sure(font != null);
+		
 		var canvas = Browser.document.createCanvasElement();
 		canvas.width = width;
 		canvas.height = height;
@@ -14,23 +19,28 @@ class TextGenerator {
 		
 		var context = canvas.getContext('2d');
 		
+		var pxSize = Std.int(Math.min(width, height) * 0.8 / s.length);
+		var scaledPxSize = Std.int((Math.min(width, height) * 0.8 / s.length) * scaleFactor);
+		
 		context.fillStyle = "#ffffff";
-		context.font = "400px Verdana";
+		context.font = Std.string(pxSize) + "px " + font;
 		context.textBaseline = "middle";
 		context.textAlign = "center";
 		context.antialias = "subpixel";
 		context.patternQuality = 'best';
 		context.filter = 'best';
 		context.imageSmoothingEnabled = true;
+		context.font = Std.string(scaledPxSize) + "px " + font;
+		var metrics = context.measureText(s);
+		context.font = Std.string(pxSize) + "px " + font;
 		
 		context.fillText(s, canvas.width / 2, canvas.height / 2);
 		
-		canvas = downScaleCanvas(canvas, 0.25);
+		if(scaleFactor < 1.0) {
+			canvas = downScaleCanvas(canvas, scaleFactor);
+		}
 		
-		// TODO add onClick that displays the SDF for the selected canvas
-		Browser.document.body.appendChild(canvas);
-		
-		return canvas;
+		return { canvas:canvas, metrics:metrics };
 	}
 	
 	// Based on http://stackoverflow.com/a/19144434/1333253 by GameAlchemist
@@ -122,7 +132,7 @@ class TextGenerator {
 					tBuffer[tIndex + 1] += sG * w;
 					tBuffer[tIndex + 2] += sB * w;
 					
-					// Add weighted component for next (tX+1) px                
+					// Add weighted component for next (tX+1) px
 					nw = nwx * scale;
 					tBuffer[tIndex + 3] += sR * nw;
 					tBuffer[tIndex + 4] += sG * nw;
