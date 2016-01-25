@@ -10,7 +10,7 @@ Try the demo out now [in your browser](http://tw1ddle.github.io/WebGL-Distance-F
 
 ## Usage ##
 
-Refer to the demo [implementation](https://github.com/Tw1ddle/WebGL-Distance-Fields), see it here [in your browser](http://tw1ddle.github.io/WebGL-Distance-Fields/).
+Refer to the demo [source code](https://github.com/Tw1ddle/WebGL-Distance-Fields).
 
 ## How It Works ##
 
