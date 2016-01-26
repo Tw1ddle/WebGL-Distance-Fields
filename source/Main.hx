@@ -1,53 +1,40 @@
 package;
 
+import composer.RenderPass;
+import composer.ShaderPass;
 import dat.GUI;
+import dat.ShaderGUI;
 import dat.ThreeObjectGUI;
 import haxe.ds.StringMap;
+import haxe.Timer;
 import js.Browser;
 import js.html.CanvasElement;
 import js.html.TextMetrics;
 import motion.Actuate;
 import sdf.generator.SDFMaker;
-import sdf.shaders.EDT.EDT_DISPLAY_AA;
+import sdf.shaders.GaussianBlur;
+import shaders.EDT_DISPLAY_DEMO;
+import shaders.FXAA;
 import stats.Stats;
 import three.Color;
 import three.Mapping;
+import three.Mesh;
+import three.OrthographicCamera;
 import three.PerspectiveCamera;
+import three.PixelFormat;
 import three.PlaneGeometry;
 import three.postprocessing.EffectComposer;
 import three.Scene;
 import three.ShaderMaterial;
 import three.Texture;
+import three.TextureDataType;
+import three.TextureFilter;
 import three.UniformsUtils;
 import three.WebGLRenderer;
-import webgl.Detector;
-import composer.ShaderPass;
-import shaders.FXAA;
 import three.WebGLRenderTarget;
-import three.TextureFilter;
-import composer.RenderPass;
-import three.Vector3;
-import dat.ShaderGUI;
-import haxe.Timer;
-
-@:native("THREE.TrackballControls")
-extern class TrackballControls {
-	public function new(object:Dynamic, ?domElement:Dynamic);
-	
-	public function handleResize():Void;
-	public function update():Void;
-	
-	public var enabled:Bool;
-	public var rotateSpeed:Float;
-	public var zoomSpeed:Float;
-	public var panSpeed:Float;
-	public var noZoom:Bool;
-	public var noPan:Bool;
-	public var staticMoving:Bool;
-	public var dynamicDampingFactor:Float;
-	public var keys:Dynamic;
-	public var target:Vector3;
-}
+import three.WebGLRenderTargetOptions;
+import three.Wrapping;
+import webgl.Detector;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
@@ -55,28 +42,30 @@ class Main {
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
-	private var gameAttachPoint:Dynamic;
+	private var loaded:Bool = false;
 	
 	private var renderer:WebGLRenderer;
 	private var composer:EffectComposer;
-	private var renderPass:RenderPass;
 	private var aaPass:ShaderPass;
 	
 	private var scene:Scene;
 	private var camera:PerspectiveCamera;
 	
+	private var blurMaterial:ShaderMaterial; // Material for blurring canvas textures slightly, reduces issues related to bad or weird AA at the cost of sharp corners
+	private var blurRenderTargetParams:WebGLRenderTargetOptions;
+	
 	private var sdfMaker:SDFMaker;
-	private var characterMap:StringMap<Character> = new StringMap<Character>();
-	private var characters:Array<Character> = new Array<Character>();
+	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>(); // Map of string input -> SDF texture
+	private var characterMap:StringMap<Character> = new StringMap<Character>(); // Map of string input -> character meshes with SDF rendering material
+	private var characters:Array<Character> = new Array<Character>(); // In-order array of the line of characters shown in the scene
 	
 	private static var lastAnimationTime:Float = 0.0; // Last time from requestAnimationFrame
 	private static var dt:Float = 0.0; // Frame delta time
 	
+	#if debug
 	private var sceneGUI:GUI = new GUI( { autoPlace:true } );
 	private var shaderGUI:GUI = new GUI( { autoPlace:true } );
-	
-	#if debug
-	public var stats(default, null):Stats;
+	private var stats(default, null):Stats;
 	#end
 	
     private static function main():Void {
@@ -137,7 +126,7 @@ class Main {
 		renderer.setPixelRatio(Browser.window.devicePixelRatio);
 		
 		// Attach game div
-		gameAttachPoint = Browser.document.getElementById("game");
+		var gameAttachPoint = Browser.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
 		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
@@ -150,7 +139,7 @@ class Main {
 		// Setup composer passes
 		composer = new EffectComposer(renderer);
 		
-		renderPass = new RenderPass(scene, camera);
+		var renderPass = new RenderPass(scene, camera);
 		
 		aaPass = new ShaderPass( { vertexShader: FXAA.vertexShader, fragmentShader: FXAA.fragmentShader, uniforms: FXAA.uniforms } );
 		aaPass.renderToScreen = true;
@@ -164,6 +153,23 @@ class Main {
 		
 		sdfMaker = new SDFMaker(renderer);
 		
+		blurMaterial = new ShaderMaterial( {
+			vertexShader: GaussianBlur.vertexShader,
+			fragmentShader: GaussianBlur.fragmentShader,
+			uniforms: GaussianBlur.uniforms
+		});
+		
+		blurRenderTargetParams = {
+			minFilter: TextureFilter.LinearFilter,
+			magFilter: TextureFilter.LinearFilter,
+			wrapS: Wrapping.RepeatWrapping,
+			wrapT: Wrapping.RepeatWrapping,
+			format: cast PixelFormat.RGBAFormat,
+			stencilBuffer: false,
+			depthBuffer: false,
+			type: TextureDataType.UnsignedByteType
+		};
+		
 		// Event setup
 		// Window resize event
 		Browser.window.addEventListener("resize", function():Void {
@@ -175,16 +181,13 @@ class Main {
 			event.preventDefault();
 		}, true);
 		
-		Browser.window.addEventListener("keydown", function(event) {
-			var keycode = event.keyCode == null ? event.charCode : event.keyCode;
-			
-			if (keycode == 8 || keycode == 46) {
-				removeCharacter();
-			}
-		}, true);
-		
+		// Add characters on keypress
 		Browser.window.addEventListener("keypress", function(event) {
-			var keycode = event.keyCode == null ? event.charCode : event.keyCode;
+			if (!loaded) {
+				return;
+			}
+			
+			var keycode = event.which == null ? event.keyCode : event.which;
 			
 			if (keycode == 8 || keycode == 46) {
 				return;
@@ -200,12 +203,26 @@ class Main {
 			event.preventDefault();
 		}, true);
 		
+		// Remove characters on delete/backspace
+		Browser.window.addEventListener("keydown", function(event) {
+			if (!loaded) {
+				return;
+			}
+			
+			var keycode = event.which == null ? event.keyCode : event.which;
+			
+			if (keycode == 8 || keycode == 46) {
+				removeCharacter();
+			}
+		}, true);
+		
 		#if debug
 		// Setup performance stats
 		setupStats();
-		#end
 		
+		// Onscreen debug controls
 		setupGUI();
+		#end
 		
 		// Add some instructional text
 		generateDistanceFieldForString("T");
@@ -240,10 +257,12 @@ class Main {
 		}, 2500);
 		
 		// Present game and start animation loop
+		loaded = true;
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
 	}
 	
+	// Called when browser window resizes
 	private function onResize():Void {
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
 		var height = Browser.window.innerHeight * renderer.getPixelRatio();
@@ -260,66 +279,91 @@ class Main {
 	private function generateDistanceFieldForString(s:String):Void {
 		// Don't generate for the same string input more than once
 		if (!characterMap.exists(s)) {
-			var data:{canvas: CanvasElement, metrics:TextMetrics } = InputGenerator.generateText(s);
+			var data: { canvas: CanvasElement, metrics:TextMetrics } = InputGenerator.generateText(s);
 			generateDistanceField(data.canvas, data.metrics, s);
 		}
 	}
 	
-	private inline function generateDistanceField(element:CanvasElement, metrics:TextMetrics, id:String):Void {
+	// Create a distance field texture for the given canvas element
+	private inline function generateDistanceField(element:CanvasElement, metrics:TextMetrics, id:String, blurInput:Bool = true):Void {
 		var texture = new Texture(element, Mapping.UVMapping);
 		texture.needsUpdate = true;
-		var target = sdfMaker.transformTexture(texture, true);
+		var width:Int = texture.image.width;
+		var height:Int = texture.image.height;
 		
-		var geometry = new PlaneGeometry(target.width, target.height);
+		var target = sdfMap.get(id);
+		if (target == null) {
+			target = sdfMaker.transformTexture(texture, blurInput);
+			sdfMap.set(id, target);
+        }
 		
-		var aaMaterial = new ShaderMaterial({
-			vertexShader: EDT_DISPLAY_AA.vertexShader,
-			fragmentShader: EDT_DISPLAY_AA.fragmentShader,
-			uniforms: UniformsUtils.clone(EDT_DISPLAY_AA.uniforms)
+		var geometry = new PlaneGeometry(width, height);
+		
+		var demoMaterial = new ShaderMaterial({
+			vertexShader: EDT_DISPLAY_DEMO.vertexShader,
+			fragmentShader: EDT_DISPLAY_DEMO.fragmentShader,
+			uniforms: UniformsUtils.clone(EDT_DISPLAY_DEMO.uniforms)
 		});
-		aaMaterial.transparent = true;
-		aaMaterial.derivatives = true;
-		aaMaterial.uniforms.tDiffuse.value = target;
-		aaMaterial.uniforms.texw.value = target.width;
-		aaMaterial.uniforms.texh.value = target.height;
-		aaMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
-		aaMaterial.uniforms.threshold.value = 0.0;
+		demoMaterial.transparent = true;
+		demoMaterial.derivatives = true;
+		demoMaterial.uniforms.tDiffuse.value = target;
+		demoMaterial.uniforms.texw.value = width;
+		demoMaterial.uniforms.texh.value = height;
+		demoMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
+		demoMaterial.uniforms.threshold.value = 0.0;
+		demoMaterial.uniforms.alpha.value = 1.0;
+		demoMaterial.uniforms.color.value.set(Math.random() * 0.04, Math.random() * 0.2, 0.5 + Math.random() * 0.5);
 		
-		characterMap.set(id, new Character(geometry, aaMaterial, target.width, target.height, metrics));
+		characterMap.set(id, new Character(geometry, demoMaterial, target.width, target.height, metrics));
 	}
 	
+	// Add a character to the end of the array
 	private inline function addCharacter(character:Character):Void {
+		Sure.sure(character != null);
+		
 		scene.add(character);
 		
-		// TODO tween in
+		var spawn = character.spawnPosition;
+		var target = character.targetPosition;
+		
 		if (characters.length > 0) {
-			var last = characters[characters.length - 1].position;
-			character.position.set(last.x, last.y, last.z + 1.0);
-			character.position.x += character.metrics.width;
+			var lastTarget = characters[characters.length - 1].targetPosition;
+			target.set(lastTarget.x + character.metrics.width, lastTarget.y, lastTarget.z + 1.0);
 		} else {
-			character.position.set(0, 0, 0);
+			target.set(0, 0, 0);
 		}
 		
+		spawn.set(target.x + 50 + Math.random() * 300, target.y + Math.random() * 300 - 150, target.z);
+		character.position.set(spawn.x, spawn.y, spawn.z);
+		character.scale.set(0, 0, 1);
+		
 		characters.push(character);
-		Actuate.tween(camera.position, 1, { x: character.position.x, y: character.position.y, z: camera.position.z + 25 } );
+		
+		Actuate.tween(character.scale, 1, { x: 1.0, y: 1.0 } );
+		Actuate.tween(character.position, 1, { x: target.x, y: target.y, z: target.z } );
+		Actuate.tween(camera.position, 1, { x: target.x, y: target.y, z: Math.min(1000, target.z + 200 + characters.length * 20) } );
 	}
 	
-	private function removeCharacter():Void {
+	// Remove the last character from the array
+	private inline function removeCharacter():Void {
 		if (characters.length == 0) {
 			return;
 		}
 		
-		var ch = characters.pop();
+		var character = characters.pop();
 		
-		Sure.sure(ch != null);
+		Sure.sure(character != null);
+		
+		Actuate.tween(character.scale, 1, { x: 0.0, y: 0.0 } );
 		
 		if (characters.length > 0) {
 			var last = characters[characters.length - 1].position;
-			Actuate.tween(camera.position, 1, { x: last.x, y: last.y, z: camera.position.z - 25 } );
+			Actuate.tween(camera.position, 1, { x: last.x, y: last.y, z: Math.max(150, camera.position.z - 25) } );
 		}
 		
-		// TODO tween out
-		scene.remove(ch);
+		Actuate.tween(character.position, 1, { x: character.spawnPosition.x, y: character.spawnPosition.y } ).onComplete(function() {
+			scene.remove(character);
+		});
 	}
 	
 	private function animate(time:Float):Void {
@@ -339,14 +383,14 @@ class Main {
 		#end
 	}
 	
-	private function setupGUI():Void {
+	#if debug
+	private inline function setupGUI():Void {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
 		ShaderGUI.generate(shaderGUI, "FXAA", aaPass.uniforms);
 	}
 	
-	#if debug
 	private inline function setupStats(mode:Mode = Mode.MEM):Void {
 		Sure.sure(stats == null);
 		stats = new Stats();

@@ -14,6 +14,8 @@ uniform float texw;
 uniform float texh;
 uniform float texLevels;
 uniform float threshold;
+uniform float alpha;
+uniform vec3 color;
 
 // Replacement for RSLs filterstep(), with fwidth() done right.
 // threshold is constant, value is smoothly varying
@@ -60,6 +62,15 @@ void main()
 	
 	float g = aastep(threshold, D);
 	
+	float a = min(g, alpha);
+	
 	// Final fragment color
-	gl_FragColor = vec4(vec3(g), 1.0);
+	if(g > 0.02)
+	{
+		gl_FragColor = vec4(color, a);
+	}
+	else
+	{
+		gl_FragColor = vec4(vec3(g), a);
+	}
 }

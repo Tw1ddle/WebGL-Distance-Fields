@@ -1,6 +1,6 @@
 ![Project logo](https://github.com/Tw1ddle/WebGL-Distance-Fields/blob/master/screenshots/webgl_distance_fields_logo.png?raw=true "WebGL Distance Fields Logo")
 
-Fast WebGL Euclidean distance field generation library, written in Haxe. Work in progress.
+Work in progress. Fast WebGL Euclidean distance field generation library, written in Haxe.
 
 Try the demo out now [in your browser](http://tw1ddle.github.io/WebGL-Distance-Fields/).
 

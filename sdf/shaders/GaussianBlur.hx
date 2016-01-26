@@ -10,6 +10,6 @@ class GaussianBlur {
 		resolution: { type: "v2", value: new Vector2(1024.0, 1024.0) },
 		flip: { type: "i", value: 0 }
 	};
-	public static var vertexShader = FileReader.readFile("sdf/shaders/passthrough.vertex");
+	public static var vertexShader = FileReader.readFile("sdf/shaders/gaussian_blur.vertex");
 	public static var fragmentShader = FileReader.readFile("sdf/shaders/gaussian_blur.fragment");
 }

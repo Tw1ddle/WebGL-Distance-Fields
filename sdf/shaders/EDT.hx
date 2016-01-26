@@ -2,7 +2,17 @@ package sdf.shaders;
 
 import util.FileReader;
 
-// Parallel euclidean distance transform
+// Creates the seed texture from an initial input texture
+class EDT_SEED {
+	public static var uniforms = {
+		tDiffuse: { type: "t", value: null },
+		texLevels: { type: "f", value: 0.0 }
+	};
+	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_seed.vertex");
+	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_seed.fragment");
+}
+
+// Performs the parallel euclidean distance transform
 class EDT_FLOOD {	
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
@@ -15,16 +25,7 @@ class EDT_FLOOD {
 	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_flood.fragment");
 }
 
-class EDT_SEED {
-	public static var uniforms = {
-		tDiffuse: { type: "t", value: null },
-		texLevels: { type: "f", value: 0.0 }
-	};
-	public static var vertexShader = FileReader.readFile("sdf/shaders/edt_seed.vertex");
-	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_seed.fragment");
-}
-
-// Displays distance field as antialiased black/white image
+// Displays distance field as black/white background and foreground, taking fractional distances into account
 class EDT_DISPLAY_AA {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
@@ -37,7 +38,7 @@ class EDT_DISPLAY_AA {
 	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_display_aa.fragment");
 }
 
-// Displays distance field as antialiased black/white with the original black image pixels, and the outline drawn in green
+// Displays distance field with the outline of the original input texture drawn in green
 class EDT_DISPLAY_OVERLAY {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
@@ -75,7 +76,7 @@ class EDT_DISPLAY_GRAYSCALE {
 	public static var fragmentShader = FileReader.readFile("sdf/shaders/edt_display_grayscale.fragment");
 }
 
-// Flawed display method, alpha thresholding that produces wavy contours
+// Flawed display method for comparison, alpha thresholding that produces wavy edge contours
 class EDT_DISPLAY_ALPHA_THRESHOLD {
 	public static var uniforms = {
 		tDiffuse: { type: "t", value: null },
