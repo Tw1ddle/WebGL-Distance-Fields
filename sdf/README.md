@@ -16,7 +16,7 @@ Refer to the demo [source code](https://github.com/Tw1ddle/WebGL-Distance-Fields
 
 This library computes the Euclidean distance transform of a texture in parallel on the GPU, taking anti-aliased foreground edges into account and producing fractional distances in the distance field texture output.
 
-The rendering shaders use thresholding and interpolation on the distance field texture to render foreground shapes, like a regular distance field rendering.
+The rendering shaders use thresholding and interpolation on the distance field texture to render foreground shapes.
 
 For a full explanation see this site from the inventors of this method, [Stefan Gustavson and Robin Strand](http://contourtextures.wikidot.com/).
 
@@ -32,7 +32,6 @@ Output rendered at (~700x700):
 
 ## Notes ##
 * This is based on Chapter 12 of [OpenGL Insights](http://openglinsights.com/) by Stefan Gustavson.
-* Inspired by Paul Houx's [text rendering sample](https://github.com/paulhoux/Cinder-Samples) for Cinder.
 * Uses the Sure and bin-packer [haxelibs](http://lib.haxe.org/).
 * Written using [Haxe](http://haxe.org/) and [three.js](http://threejs.org/).
 
