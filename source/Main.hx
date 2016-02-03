@@ -184,18 +184,20 @@ class Main {
 		// Add characters on keypress
 		Browser.window.addEventListener("keypress", function(event) {
 			if (!loaded) {
+				event.preventDefault();
 				return;
 			}
 			
 			var keycode = event.which == null ? event.keyCode : event.which;
 			
-			if (keycode == 8 || keycode == 46) {
+			if (keycode <= 0) {
+				event.preventDefault();
 				return;
 			}
 			
 			var ch = String.fromCharCode(keycode);
 			
-			if(ch.length > 0) {
+			if(ch.length > 0 && keycode != 8) {
 				generateDistanceFieldForString(ch);
 				addCharacter(characterMap.get(ch).create());
 			}
@@ -206,6 +208,7 @@ class Main {
 		// Remove characters on delete/backspace
 		Browser.window.addEventListener("keydown", function(event) {
 			if (!loaded) {
+				event.preventDefault();
 				return;
 			}
 			
@@ -213,6 +216,7 @@ class Main {
 			
 			if (keycode == 8 || keycode == 46) {
 				removeCharacter();
+				event.preventDefault();
 			}
 		}, true);
 		

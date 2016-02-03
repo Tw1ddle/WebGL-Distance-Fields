@@ -291,22 +291,34 @@ Main.prototype = {
 			event.preventDefault();
 		},true);
 		window.addEventListener("keypress",function(event1) {
-			if(!_g.loaded) return;
+			if(!_g.loaded) {
+				event1.preventDefault();
+				return;
+			}
 			var keycode;
 			if(event1.which == null) keycode = event1.keyCode; else keycode = event1.which;
-			if(keycode == 8 || keycode == 46) return;
+			if(keycode <= 0) {
+				event1.preventDefault();
+				return;
+			}
 			var ch = String.fromCharCode(keycode);
-			if(ch.length > 0) {
+			if(ch.length > 0 && keycode != 8) {
 				_g.generateDistanceFieldForString(ch);
 				_g.addCharacter(_g.characterMap.get(ch).create());
 			}
 			event1.preventDefault();
 		},true);
 		window.addEventListener("keydown",function(event2) {
-			if(!_g.loaded) return;
+			if(!_g.loaded) {
+				event2.preventDefault();
+				return;
+			}
 			var keycode1;
 			if(event2.which == null) keycode1 = event2.keyCode; else keycode1 = event2.which;
-			if(keycode1 == 8 || keycode1 == 46) _g.removeCharacter();
+			if(keycode1 == 8 || keycode1 == 46) {
+				_g.removeCharacter();
+				event2.preventDefault();
+			}
 		},true);
 		this.setupStats(null);
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
@@ -1681,6 +1693,8 @@ var sdf_generator_SDFMaker = function(renderer) {
 sdf_generator_SDFMaker.__name__ = true;
 sdf_generator_SDFMaker.prototype = {
 	transformTexture: function(texture,blurInput) {
+		if(blurInput == null) blurInput = true;
+		var start = haxe_Timer.stamp();
 		var width = texture.image.width;
 		var height = texture.image.height;
 		var ping = new THREE.WebGLRenderTarget(width,height,this.renderTargetParams);
@@ -1732,10 +1746,14 @@ sdf_generator_SDFMaker.prototype = {
 		this.scene.overrideMaterial = null;
 		if(last != ping) ping.dispose();
 		if(last != pong) pong.dispose();
+		var duration = haxe_Timer.stamp() - start;
+		console.log("Transform duration: " + duration);
 		return last;
 	}
 	,__class__: sdf_generator_SDFMaker
 };
+var sdf_shaders_Copy = function() { };
+sdf_shaders_Copy.__name__ = true;
 var sdf_shaders_EDT_$SEED = function() { };
 sdf_shaders_EDT_$SEED.__name__ = true;
 var sdf_shaders_EDT_$FLOOD = function() { };
@@ -1792,6 +1810,9 @@ motion_actuators_SimpleActuator.addedEvent = false;
 motion_Actuate.defaultActuator = motion_actuators_SimpleActuator;
 motion_Actuate.defaultEase = motion_easing_Expo.get_easeOut();
 motion_Actuate.targetLibraries = new haxe_ds_ObjectMap();
+sdf_shaders_Copy.uniforms = { tDiffuse : { type : "t", value : null}};
+sdf_shaders_Copy.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
+sdf_shaders_Copy.fragmentShader = "varying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\n\r\nvoid main()\r\n{\r\n\tgl_FragColor = texture2D(tDiffuse, vUv);\r\n}";
 sdf_shaders_EDT_$SEED.uniforms = { tDiffuse : { type : "t", value : null}, texLevels : { type : "f", value : 0.0}};
 sdf_shaders_EDT_$SEED.vertexShader = "varying vec2 vUv;\r\n\r\nvoid main()\r\n{\r\n\tvUv = uv;\r\n\tgl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r\n}";
 sdf_shaders_EDT_$SEED.fragmentShader = "// Jump flooding algorithm for Euclidean distance transform, according to Danielsson (1980) and Guodong Rong (2007).\r\n// This shader initializes the distance field in preparation for the flood filling.\r\n\r\n// Adapted for three.js demo by Sam Twidale.\r\n// Original implementation by Stefan Gustavson 2010.\r\n// This code is in the public domain.\r\n\r\nvarying vec2 vUv;\r\n\r\nuniform sampler2D tDiffuse;\r\nuniform float texLevels;\r\n\r\nvoid main()\r\n{\r\n\tfloat texel = texture2D(tDiffuse, vUv).r;\r\n\t\r\n\t// Represents zero\r\n\tfloat myzero = 0.5 * texLevels / (texLevels - 1.0);\r\n\t\r\n\t// Represents infinity/not-yet-calculated\r\n\tfloat myinfinity = 0.0;\r\n\t\r\n\t// Sub-pixel AA distance\r\n\tfloat aadist = texel;\r\n\t\r\n\t// Pixels > 0.5 are objects, others are background\r\n\tgl_FragColor = vec4(vec2(texel > 0.99999 ? myinfinity : myzero), aadist, 1.0);\r\n}";
