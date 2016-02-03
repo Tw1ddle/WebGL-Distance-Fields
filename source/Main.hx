@@ -18,8 +18,6 @@ import shaders.FXAA;
 import stats.Stats;
 import three.Color;
 import three.Mapping;
-import three.Mesh;
-import three.OrthographicCamera;
 import three.PerspectiveCamera;
 import three.PixelFormat;
 import three.PlaneGeometry;
@@ -64,7 +62,7 @@ class Main {
 	
 	#if debug
 	private var sceneGUI:GUI = new GUI( { autoPlace:true } );
-	private var shaderGUI:GUI = new GUI( { autoPlace:true } );
+	//private var shaderGUI:GUI = new GUI( { autoPlace:true } );
 	private var stats(default, null):Stats;
 	#end
 	
@@ -128,6 +126,18 @@ class Main {
 		// Attach game div
 		var gameAttachPoint = Browser.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
+		
+		// Add credits
+		var container = Browser.document.createElement('div');
+		Browser.document.body.appendChild(container);
+		var info = Browser.document.createElement('div');
+		info.style.position = 'absolute';
+		info.style.top = '20px';
+		info.style.width = '100%';
+		info.style.textAlign = 'center';
+		info.style.color = 'white';
+		info.innerHTML = '<a href="https://github.com/Tw1ddle/WebGL-Distance-Fields" target="_blank">Distance fields</a> by <a href="http://www.samcodes.co.uk/" target="_blank">Sam Twidale</a>. Technique by <a href="http://contourtextures.wikidot.com/" target="_blank">Stefan Gustavson</a>.';
+		container.appendChild(info);
 		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
 		var height = Browser.window.innerHeight * renderer.getPixelRatio();
@@ -220,6 +230,27 @@ class Main {
 			}
 		}, true);
 		
+		var onMouseWheel = function(event:Dynamic) {
+			if (!loaded) {
+				event.preventDefault();
+				return;
+			}
+			
+			var delta = event.wheelDelta == null ? event.detail : event.wheelDelta;
+
+			if (delta > 0) {
+				camera.position.z -= 20;
+			} else if (delta < 0) {
+				camera.position.z += 20;
+			}
+			
+			event.preventDefault();
+		}
+		
+		// Zoom in or out manually
+		Browser.document.addEventListener("mousewheel", onMouseWheel, false);
+		Browser.document.addEventListener("DOMMouseScroll", onMouseWheel, false);
+		
 		#if debug
 		// Setup performance stats
 		setupStats();
@@ -229,41 +260,23 @@ class Main {
 		#end
 		
 		// Add some instructional text
-		generateDistanceFieldForString("T");
-		addCharacter(characterMap.get("T").create());
-		
-		Timer.delay(function() {
-			generateDistanceFieldForString("Y");
-			addCharacter(characterMap.get("Y").create());
-		}, 500);
-		
-		Timer.delay(function() {
-			generateDistanceFieldForString("P");
-			addCharacter(characterMap.get("P").create());
-		}, 1000);
-		
-		Timer.delay(function() {
-			generateDistanceFieldForString("E");
-			addCharacter(characterMap.get("E").create());
-		}, 1500);
-		
-		Timer.delay(function() {
-			generateDistanceFieldForString(".");
-			addCharacter(characterMap.get(".").create());
-		}, 2000);
-		
-		Timer.delay(function() {
-			addCharacter(characterMap.get(".").create());
-		}, 2300);
-		
-		Timer.delay(function() {
-			addCharacter(characterMap.get(".").create());
-		}, 2500);
+		generateDelayedString("TYPE SOMETHING! ", 300);
 		
 		// Present game and start animation loop
 		loaded = true;
 		gameDiv.appendChild(renderer.domElement);
 		Browser.window.requestAnimationFrame(animate);
+	}
+	
+	private inline function generateDelayedString(message:String, msPerLetter:Int):Void {
+		var t = msPerLetter;
+		for (i in 0...message.length) {
+			Timer.delay(function() {
+				generateDistanceFieldForString(message.charAt(i));
+				addCharacter(characterMap.get(message.charAt(i)).create());
+			}, t);
+			t += msPerLetter;
+		}
 	}
 	
 	// Called when browser window resizes
@@ -345,7 +358,7 @@ class Main {
 		
 		Actuate.tween(character.scale, 1, { x: 1.0, y: 1.0 } );
 		Actuate.tween(character.position, 1, { x: target.x, y: target.y, z: target.z } );
-		Actuate.tween(camera.position, 1, { x: target.x, y: target.y, z: Math.min(1000, target.z + 200 + characters.length * 20) } );
+		Actuate.tween(camera.position, 1, { x: target.x, y: target.y, z: Math.min(1000, camera.position.z + 25) } );
 	}
 	
 	// Remove the last character from the array
@@ -392,7 +405,7 @@ class Main {
 		ThreeObjectGUI.addItem(sceneGUI, camera, "World Camera");
 		ThreeObjectGUI.addItem(sceneGUI, scene, "Scene");
 		
-		ShaderGUI.generate(shaderGUI, "FXAA", aaPass.uniforms);
+		//ShaderGUI.generate(shaderGUI, "FXAA", aaPass.uniforms);
 	}
 	
 	private inline function setupStats(mode:Mode = Mode.MEM):Void {

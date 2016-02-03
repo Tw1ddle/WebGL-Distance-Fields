@@ -211,7 +211,6 @@ InputGenerator.downScaleCanvas = function(cv,scale) {
 	return result;
 };
 var Main = function() {
-	this.shaderGUI = new dat.GUI({ autoPlace : true});
 	this.sceneGUI = new dat.GUI({ autoPlace : true});
 	this.characters = [];
 	this.characterMap = new haxe_ds_StringMap();
@@ -268,6 +267,16 @@ Main.prototype = {
 		this.renderer.setPixelRatio(window.devicePixelRatio);
 		var gameAttachPoint = window.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
+		var container = window.document.createElement("div");
+		window.document.body.appendChild(container);
+		var info = window.document.createElement("div");
+		info.style.position = "absolute";
+		info.style.top = "20px";
+		info.style.width = "100%";
+		info.style.textAlign = "center";
+		info.style.color = "white";
+		info.innerHTML = "<a href=\"https://github.com/Tw1ddle/WebGL-Distance-Fields\" target=\"_blank\">Distance fields</a> by <a href=\"http://www.samcodes.co.uk/\" target=\"_blank\">Sam Twidale</a>. Technique by <a href=\"http://contourtextures.wikidot.com/\" target=\"_blank\">Stefan Gustavson</a>.";
+		container.appendChild(info);
 		var width = window.innerWidth * this.renderer.getPixelRatio();
 		var height = window.innerHeight * this.renderer.getPixelRatio();
 		this.scene = new THREE.Scene();
@@ -287,18 +296,18 @@ Main.prototype = {
 		window.addEventListener("resize",function() {
 			_g.onResize();
 		},true);
-		window.addEventListener("contextmenu",function(event) {
-			event.preventDefault();
+		window.addEventListener("contextmenu",function(event1) {
+			event1.preventDefault();
 		},true);
-		window.addEventListener("keypress",function(event1) {
+		window.addEventListener("keypress",function(event2) {
 			if(!_g.loaded) {
-				event1.preventDefault();
+				event2.preventDefault();
 				return;
 			}
 			var keycode;
-			if(event1.which == null) keycode = event1.keyCode; else keycode = event1.which;
+			if(event2.which == null) keycode = event2.keyCode; else keycode = event2.which;
 			if(keycode <= 0) {
-				event1.preventDefault();
+				event2.preventDefault();
 				return;
 			}
 			var ch = String.fromCharCode(keycode);
@@ -306,51 +315,55 @@ Main.prototype = {
 				_g.generateDistanceFieldForString(ch);
 				_g.addCharacter(_g.characterMap.get(ch).create());
 			}
-			event1.preventDefault();
+			event2.preventDefault();
 		},true);
-		window.addEventListener("keydown",function(event2) {
+		window.addEventListener("keydown",function(event3) {
 			if(!_g.loaded) {
-				event2.preventDefault();
+				event3.preventDefault();
 				return;
 			}
 			var keycode1;
-			if(event2.which == null) keycode1 = event2.keyCode; else keycode1 = event2.which;
+			if(event3.which == null) keycode1 = event3.keyCode; else keycode1 = event3.which;
 			if(keycode1 == 8 || keycode1 == 46) {
 				_g.removeCharacter();
-				event2.preventDefault();
+				event3.preventDefault();
 			}
 		},true);
+		var onMouseWheel = function(event) {
+			if(!_g.loaded) {
+				event.preventDefault();
+				return;
+			}
+			var delta;
+			if(event.wheelDelta == null) delta = event.detail; else delta = event.wheelDelta;
+			if(delta > 0) _g.camera.position.z -= 20; else if(delta < 0) _g.camera.position.z += 20;
+			event.preventDefault();
+		};
+		window.document.addEventListener("mousewheel",onMouseWheel,false);
+		window.document.addEventListener("DOMMouseScroll",onMouseWheel,false);
 		this.setupStats(null);
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
-		dat_ShaderGUI.generate(this.shaderGUI,"FXAA",this.aaPass.uniforms);
-		this.generateDistanceFieldForString("T");
-		this.addCharacter(this.characterMap.get("T").create());
-		haxe_Timer.delay(function() {
-			_g.generateDistanceFieldForString("Y");
-			_g.addCharacter(_g.characterMap.get("Y").create());
-		},500);
-		haxe_Timer.delay(function() {
-			_g.generateDistanceFieldForString("P");
-			_g.addCharacter(_g.characterMap.get("P").create());
-		},1000);
-		haxe_Timer.delay(function() {
-			_g.generateDistanceFieldForString("E");
-			_g.addCharacter(_g.characterMap.get("E").create());
-		},1500);
-		haxe_Timer.delay(function() {
-			_g.generateDistanceFieldForString(".");
-			_g.addCharacter(_g.characterMap.get(".").create());
-		},2000);
-		haxe_Timer.delay(function() {
-			_g.addCharacter(_g.characterMap.get(".").create());
-		},2300);
-		haxe_Timer.delay(function() {
-			_g.addCharacter(_g.characterMap.get(".").create());
-		},2500);
+		this.generateDelayedString("TYPE SOMETHING! ",300);
 		this.loaded = true;
 		gameDiv.appendChild(this.renderer.domElement);
 		window.requestAnimationFrame($bind(this,this.animate));
+	}
+	,generateDelayedString: function(message,msPerLetter) {
+		var _g2 = this;
+		var t = msPerLetter;
+		var _g1 = 0;
+		var _g = message.length;
+		while(_g1 < _g) {
+			var i = [_g1++];
+			haxe_Timer.delay((function(i) {
+				return function() {
+					_g2.generateDistanceFieldForString(message.charAt(i[0]));
+					_g2.addCharacter(_g2.characterMap.get(message.charAt(i[0])).create());
+				};
+			})(i),t);
+			t += msPerLetter;
+		}
 	}
 	,onResize: function() {
 		var width = window.innerWidth * this.renderer.getPixelRatio();
@@ -406,7 +419,7 @@ Main.prototype = {
 		this.characters.push(character);
 		motion_Actuate.tween(character.scale,1,{ x : 1.0, y : 1.0});
 		motion_Actuate.tween(character.position,1,{ x : target.x, y : target.y, z : target.z});
-		motion_Actuate.tween(this.camera.position,1,{ x : target.x, y : target.y, z : Math.min(1000,target.z + 200 + this.characters.length * 20)});
+		motion_Actuate.tween(this.camera.position,1,{ x : target.x, y : target.y, z : Math.min(1000,this.camera.position.z + 25)});
 	}
 	,removeCharacter: function() {
 		var _g = this;
@@ -433,7 +446,6 @@ Main.prototype = {
 	,setupGUI: function() {
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.camera,"World Camera");
 		dat_ThreeObjectGUI.addItem(this.sceneGUI,this.scene,"Scene");
-		dat_ShaderGUI.generate(this.shaderGUI,"FXAA",this.aaPass.uniforms);
 	}
 	,setupStats: function(mode) {
 		if(mode == null) mode = 2;
