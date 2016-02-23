@@ -30,6 +30,12 @@ import three.Texture;
 import three.WebGLRenderer;
 import three.WebGLRenderTarget;
 import webgl.Detector;
+import js.html.File;
+import js.html.FileReader;
+import js.html.Event;
+import js.html.FileList;
+import js.html.Image;
+import three.OrthographicCamera;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
@@ -42,7 +48,7 @@ class Main {
 	private var renderer:WebGLRenderer;
 	
 	private var scene:Scene;
-	private var camera:PerspectiveCamera;
+	private var camera:OrthographicCamera;
 	
 	private var sdfMaker:SDFMaker;
 	private var sdfMap:StringMap<WebGLRenderTarget> = new StringMap<WebGLRenderTarget>();
@@ -66,6 +72,9 @@ class Main {
 	
 	private var sceneGUI:GUI = new GUI( { autoPlace:true } );
 	private var shaderGUI:GUI = new GUI( { autoPlace:true } );
+	
+	private var sceneWidth:Float = 400;
+	private var sceneHeight:Float = 400;
 	
 	#if debug
 	public var stats(default, null):Stats;
@@ -126,28 +135,31 @@ class Main {
         renderer.sortObjects = false;
 		renderer.autoClear = false;
 		renderer.setClearColor(new Color(0x000000));
-		renderer.setPixelRatio(Browser.window.devicePixelRatio);
+		renderer.setPixelRatio(1.0);
 		
 		// Attach game div
 		gameAttachPoint = Browser.document.getElementById("game");
 		gameAttachPoint.appendChild(gameDiv);
 		
-		var width = 400 * renderer.getPixelRatio();
-		var height = 400 * renderer.getPixelRatio();
+		var width = sceneWidth;
+		var height = sceneHeight;
 		
 		scene = new Scene();
-		camera = new PerspectiveCamera(75, width / height, 1, 10000);
+		camera = new OrthographicCamera(width / -2, width / 2, height / 2, height / -2, 1, 1000);
 		camera.position.z = 80;
 		
 		// Initial renderer setup
 		// Connect signals and slots
 		signal_windowResized.add(function():Void {
-			var width = 400 * renderer.getPixelRatio();
-			var height = 400 * renderer.getPixelRatio();
+			var width = sceneWidth;
+			var height = sceneHeight;
 			
 			renderer.setSize(width, height);
 			
-			camera.aspect = width / height;
+			camera.left = width / -2;
+			camera.top = height / 2;
+			camera.right = width / 2;
+			camera.bottom = height / -2;
 			camera.updateProjectionMatrix();
 		});
 		signal_windowResized.dispatch();
@@ -257,6 +269,44 @@ class Main {
 			
 			event.preventDefault();
 		}, true);
+		
+		Browser.window.addEventListener("dragover", function(event) {
+			event.preventDefault();
+			event.stopPropagation();
+		}, false);
+		
+		Browser.window.addEventListener("drop", function(event) {
+			
+			var dt = event.dataTransfer;
+			var files = dt.files;
+			
+			var i = 0;
+			while (i < files.length) {				
+				var f = files.item(i);
+				
+				if (!f.type.match("image.*")) {
+					break;
+				}
+				
+				var reader = new FileReader();
+				reader.onload = function(e):Void {
+					var image = new Image();
+					image.src = e.target.result;
+					var texture = new Texture(image, Mapping.UVMapping);
+					texture.needsUpdate = true;
+					sdfMaker.transformTexture(texture, f.name, true);
+					sceneWidth = image.width;
+					sceneHeight = image.height;
+					signal_windowResized.dispatch();
+				}
+				reader.readAsDataURL(cast f);
+				
+				i++;
+			}
+			
+			event.preventDefault();
+			event.stopPropagation();
+		}, false);
 		
 		#if debug
 		// Setup performance stats
