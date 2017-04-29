@@ -1,5 +1,7 @@
 ![Project logo](screenshots/webgl_distance_fields_logo.png?raw=true "WebGL Distance Fields Logo")
 
+[![Build Status](https://img.shields.io/travis/Tw1ddle/WebGL-Distance-Fields.svg?style=flat-square)](https://travis-ci.org/Tw1ddle/WebGL-Distance-Fields)
+
 Fast Euclidean distance field generation and rendering demo with three.js.
 
 Try it [in your browser](http://tw1ddle.github.io/WebGL-Distance-Fields/). Type something. Hit backspace or delete to remove letters. Mousewheel to zoom.
