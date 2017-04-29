@@ -1,0 +1,20 @@
+sudo: required
+dist: trusty
+
+language: haxe
+
+os:
+  - linux
+
+# see haxe versions: http://haxe.org/website-content/downloads/versions.json
+haxe:
+  - "3.4.2"
+
+install:
+  - haxelib install actuate
+  - haxelib install bin-packing
+  - haxelib install Sure
+
+script:
+  - haxe DistanceFieldGeneratorDemo.hxml debug.hxml
+  - haxe DistanceFieldGeneratorDemo.hxml release.hxml
