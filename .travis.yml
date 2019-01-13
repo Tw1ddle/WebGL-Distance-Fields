@@ -18,3 +18,12 @@ install:
 script:
   - haxe DistanceFieldGeneratorDemo.hxml debug.hxml
   - haxe DistanceFieldGeneratorDemo.hxml release.hxml
+
+# Deploy the generated demo using Travis builtin GitHub Pages support
+deploy:
+  provider: pages
+  skip_cleanup: true
+  local_dir: bin/release
+  github_token: $GITHUB_API_KEY
+  on:
+    branch: gh-pages

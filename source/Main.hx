@@ -36,7 +36,7 @@ import webgl.Detector;
 
 class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
-	public static inline var WEBSITE_URL:String = "http://samcodes.co.uk/";
+	public static inline var WEBSITE_URL:String = "https://samcodes.co.uk/";
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
 	public static inline var HAXE_URL:String = "http://haxe.org/";
 	
