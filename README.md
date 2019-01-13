@@ -3,13 +3,13 @@
 [![Build Status](https://img.shields.io/travis/Tw1ddle/WebGL-Distance-Fields.svg?style=flat-square)](https://travis-ci.org/Tw1ddle/WebGL-Distance-Fields)
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat-square)](https://github.com/Tw1ddle/WebGL-Distance-Fields/blob/master/LICENSE)
 
-Fast Euclidean distance field generation and rendering demo. Run it [in your browser](http://tw1ddle.github.io/WebGL-Distance-Fields/).
+Fast Euclidean distance field generation and rendering demo. Run it [in the browser](http://tw1ddle.github.io/WebGL-Distance-Fields/).
 
 ## Usage
 
-The demo performs realtime distance field generation from canvas text. Type something to add letters, hit backspace or delete to remove letters. Mousewheel to zoom.
+The demo performs realtime distance field generation from text drawn on a HTML5 canvas. Type something to add letters, hit backspace or delete to remove letters, use mousewheel to zoom.
 
-![Screenshot](https://github.com/Tw1ddle/WebGL-Distance-Fields/blob/master/screenshots/realtime.gif?raw=true "WebGL Distance Fields Realtime Screenshot")
+[![Screenshot](https://github.com/Tw1ddle/WebGL-Distance-Fields/blob/master/screenshots/realtime.gif?raw=true "WebGL Distance Fields Realtime Screenshot")](http://tw1ddle.github.io/WebGL-Distance-Fields/)
 
 ## How It Works
 
@@ -29,4 +29,5 @@ Output rendered at (~700x700):
 * Uses the actuate and Sure [haxelibs](http://lib.haxe.org/).
 
 ## License
-The distance field shaders are in the public domain. The rest is under the MIT license, unless noted otherwise.
+ * The distance field shaders are in the public domain. The rest of the code is provided under the MIT license, unless noted otherwise.
+ * Got an idea or suggestion? Open an issue on GitHub, or send Sam a message on [Twitter](https://twitter.com/Sam_Twidale).
