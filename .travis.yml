@@ -26,3 +26,5 @@ deploy:
   local_dir: bin/release
   github_token: $GITHUB_API_KEY
   target-branch: gh-pages
+  on:
+    branch: master
