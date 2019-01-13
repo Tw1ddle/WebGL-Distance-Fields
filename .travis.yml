@@ -25,5 +25,4 @@ deploy:
   skip_cleanup: true
   local_dir: bin/release
   github_token: $GITHUB_API_KEY
-  on:
-    branch: gh-pages
+  target-branch: gh-pages
