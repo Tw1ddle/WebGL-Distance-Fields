@@ -69,7 +69,7 @@ deploy_script:
   # Move the newly-generated site to the gh-pages folder
   - cd $APPVEYOR_BUILD_FOLDER/bin/release/
   - (shopt -s dotglob && mv * ../../../gh-pages)
-  - cd ../../gh-pages
+  - cd ../../../gh-pages
 
   # Note that when there is nothing to commit, git commit exits with 1 (but that should never happen here)
   - git add -A
