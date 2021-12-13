@@ -1,7 +1,7 @@
 ![Project logo](screenshots/webgl_distance_fields_logo.png?raw=true "WebGL Distance Fields Logo")
 
-[![Build Status](https://img.shields.io/travis/Tw1ddle/WebGL-Distance-Fields.svg?style=flat-square)](https://travis-ci.org/Tw1ddle/WebGL-Distance-Fields)
 [![License](https://img.shields.io/:license-mit-blue.svg?style=flat-square)](https://github.com/Tw1ddle/WebGL-Distance-Fields/blob/master/LICENSE)
+[![Build Status Badge](https://ci.appveyor.com/api/projects/status/github/Tw1ddle/WebGL-Distance-Fields)](https://ci.appveyor.com/project/Tw1ddle/WebGL-Distance-Fields)
 
 Fast Euclidean distance field generation and rendering demo. Run it [in the browser](https://tw1ddle.github.io/WebGL-Distance-Fields/).
 
