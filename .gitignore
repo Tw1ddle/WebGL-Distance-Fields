@@ -8,3 +8,5 @@ Thumbs.db
 *.class
 *.log
 *.js.map
+bin/debug/js/game.js
+bin/release/js/game.js
