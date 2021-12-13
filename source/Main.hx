@@ -301,6 +301,8 @@ class Main {
 		}
 	}
 	
+	private static var fieldsGenerated:Int = 0; // Keep count of the distance fields generated, used for assigning an interesting colour to the materials
+	
 	// Create a distance field texture for the given canvas element
 	private inline function generateDistanceField(element:CanvasElement, metrics:TextMetrics, id:String, blurInput:Bool = true):Void {
 		var texture = new Texture(element, Mapping.UVMapping);
@@ -329,7 +331,21 @@ class Main {
 		demoMaterial.uniforms.texLevels.value = sdfMaker.texLevels;
 		demoMaterial.uniforms.threshold.value = 0.0;
 		demoMaterial.uniforms.alpha.value = 1.0;
-		demoMaterial.uniforms.color.value.set(Math.random() * 0.04, Math.random() * 0.2, 0.5 + Math.random() * 0.5);
+		
+		var makeColor = function(idx:Int, phase:Float) : { r: Float, g:Float, b:Float } {
+			var center:Float = 0.5;
+			var width:Float = 0.5;
+			var frequency:Float = Math.PI * 2;
+			var red:Float = Math.sin(frequency * idx + 2 + phase) * width + center;
+			var green:Float = Math.sin(frequency * idx + 0 + phase) * width + center;
+			var blue:Float = Math.sin(frequency * idx + 4 + phase) * width + center;
+			return { r: red, g: green, b: blue };
+		};
+		var col = makeColor(fieldsGenerated, Math.cos(Timer.stamp()));
+		
+		demoMaterial.uniforms.color.value.set(col.r, col.g, col.b);
+		
+		fieldsGenerated++;
 		
 		characterMap.set(id, new Character(geometry, demoMaterial, target.width, target.height, metrics));
 	}
