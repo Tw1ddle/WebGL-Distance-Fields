@@ -136,7 +136,7 @@ class Main {
 		info.style.width = '100%';
 		info.style.textAlign = 'center';
 		info.style.color = 'white';
-		info.innerHTML = '<a href="https://github.com/Tw1ddle/WebGL-Distance-Fields" target="_blank">Distance fields</a> by <a href="https://www.samcodes.co.uk/" target="_blank">Sam Twidale</a>. Technique by <a href="https://contourtextures.wikidot.com/" target="_blank">Stefan Gustavson</a>.';
+		info.innerHTML = '<p><a href="https://github.com/Tw1ddle/WebGL-Distance-Fields" target="_blank">Distance fields</a> by <a href="https://www.samcodes.co.uk/" target="_blank">Sam Twidale</a>. Technique by <a href="https://contourtextures.wikidot.com/" target="_blank">Stefan Gustavson</a>.</p><p>Type something. Use the mousewheel to zoom.</p>';
 		container.appendChild(info);
 		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
