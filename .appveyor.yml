@@ -30,10 +30,8 @@ install:
   
 build_script:
   - cd $APPVEYOR_BUILD_FOLDER
-  - pushd src
   - haxe DistanceFieldGeneratorDemo.hxml debug.hxml
   - haxe DistanceFieldGeneratorDemo.hxml release.hxml
-  - popd
 
 # Deploy the demo to the GitHub pages branch
 deploy_script:
