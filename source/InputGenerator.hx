@@ -43,7 +43,7 @@ class InputGenerator {
 		return { canvas:canvas, metrics:metrics };
 	}
 	
-	// Based on http://stackoverflow.com/a/19144434/1333253 by GameAlchemist
+	// Based on https://stackoverflow.com/a/19144434/1333253 by GameAlchemist
 	// Scales the canvas down, 0 < scale < 1, and returns a new canvas containing the scaled image
 	public static function downScaleCanvas(cv:Dynamic, scale:Float):CanvasElement {
 		if (scale <= 0.0 || scale >= 1.0) {

@@ -38,7 +38,7 @@ class Main {
 	public static inline var REPO_URL:String = "https://github.com/Tw1ddle/WebGL-Distance-Fields";
 	public static inline var WEBSITE_URL:String = "https://samcodes.co.uk/";
 	public static inline var TWITTER_URL:String = "https://twitter.com/Sam_Twidale";
-	public static inline var HAXE_URL:String = "http://haxe.org/";
+	public static inline var HAXE_URL:String = "https://haxe.org/";
 	
 	private var loaded:Bool = false;
 	
@@ -136,7 +136,7 @@ class Main {
 		info.style.width = '100%';
 		info.style.textAlign = 'center';
 		info.style.color = 'white';
-		info.innerHTML = '<a href="https://github.com/Tw1ddle/WebGL-Distance-Fields" target="_blank">Distance fields</a> by <a href="http://www.samcodes.co.uk/" target="_blank">Sam Twidale</a>. Technique by <a href="http://contourtextures.wikidot.com/" target="_blank">Stefan Gustavson</a>.';
+		info.innerHTML = '<a href="https://github.com/Tw1ddle/WebGL-Distance-Fields" target="_blank">Distance fields</a> by <a href="https://www.samcodes.co.uk/" target="_blank">Sam Twidale</a>. Technique by <a href="https://contourtextures.wikidot.com/" target="_blank">Stefan Gustavson</a>.';
 		container.appendChild(info);
 		
 		var width = Browser.window.innerWidth * renderer.getPixelRatio();
